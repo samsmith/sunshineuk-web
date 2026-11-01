@@ -1,246 +1,165 @@
 {% extends 'baser.html' %}
-{% load bootstrap %}
+{% load static %}
 
 {% block content %}
 
-  <form method="POST" role="form" action="#">
+  <div class="row box">
+    <div class="col-md-8">
+      <h1>Declare your interests</h1>
+      <p>
+        Declare any income or benefits received in a 12-month period other than
+        from your primary employer.
+      </p>
+      <p>
+        If in doubt, it is always best to declare.
+      </p>
+    </div>
+  </div>
+
+  {# Section 1 posts with the Doctor form's own field names. Section 2 is #}
+  {# built by declare.js and posts in the two hidden fields at the end.   #}
+  <form method="POST" action="" id="declare-form" novalidate>
     {% csrf_token %}
 
-    <div class="row box">
-      <div class="col-md-8">
-        <h1>Declare your interests</h1>
-        <p>
-          You are able to use this form to declare any financial interests in a 12 month period
-          relating to income received other than from your "primary employer" given below.
-        </p>
-        <p>
-	  If in doubt, it is always best to declare income.
-        </p>
-      </div>
-    </div>
-
-    <div class="row box">
+    <div class="row box" id="screen-identity">
       <div class="col-md-6">
-        <h2 class="">Section 1: Identifying information</h2>
-        {{ form.errors }}
-        <div class="row">
-          <div class="col-md-12">
-            {{ form|bootstrap }}
+        <h2>Section 1: About you</h2>
+
+        {% if form.errors %}
+          <div class="alert alert-danger" role="alert">
+            <p><strong>Please correct the following:</strong></p>
+            <ul>
+              {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+              {% for field in form %}
+                {% for error in field.errors %}
+                  <li>{{ field.label }}: {{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+            </ul>
           </div>
+        {% endif %}
+
+        <div class="form-group{% if form.name.errors %} has-error{% endif %}">
+          <label class="control-label" for="id_name">Full name</label>
+          <input type="text" class="form-control" id="id_name" name="name"
+                 maxlength="200" autocomplete="name" required
+                 value="{{ form.name.value|default_if_none:'' }}">
         </div>
+
+        <div class="form-group{% if form.job_title.errors %} has-error{% endif %}">
+          <label class="control-label" for="id_job_title">Job title</label>
+          <input type="text" class="form-control" id="id_job_title" name="job_title"
+                 maxlength="200" required
+                 value="{{ form.job_title.value|default_if_none:'' }}">
+        </div>
+
+        <div class="form-group{% if form.primary_employer.errors %} has-error{% endif %}">
+          <label class="control-label" for="id_primary_employer">Primary employer</label>
+          <input type="text" class="form-control" id="id_primary_employer" name="primary_employer"
+                 maxlength="200" required
+                 value="{{ form.primary_employer.value|default_if_none:'' }}">
+        </div>
+
+        <div class="form-group{% if form.gmc_number.errors %} has-error{% endif %}">
+          <label class="control-label" for="id_gmc_number">GMC number</label>
+          <p class="help-block" id="gmc-hint">
+            If you don't have a GMC number, enter another professional identifier.
+            An ORCID iD works well for academics.
+          </p>
+          <input type="text" class="form-control" id="id_gmc_number" name="gmc_number"
+                 maxlength="100" required aria-describedby="gmc-hint"
+                 value="{{ form.gmc_number.value|default_if_none:'' }}">
+        </div>
+
+        <p class="text-danger hidden" id="identity-error" role="alert">
+          Please complete every field before continuing.
+        </p>
+        <button type="button" class="btn btn-primary" id="btn-identity-done">
+          Done — start my declaration
+        </button>
       </div>
     </div>
 
+    <input type="hidden" name="declaration" id="id_declaration">
+    <input type="hidden" name="declaration_records" id="id_declaration_records">
+  </form>
+
+  <div id="screen-main" class="hidden">
+
     <div class="row box">
-      <div class="col-md-6">
-        <h2 class="">
-          Section 2: Employment Details
-        </h2>
-        {{ workdetailsinline.management_form }}
-        {% for form in workdetailsinline.forms %}
-          <div class="row work-details">
-            <div class="col-md-12">
-              {{ form.category| bootstrap }}
-              {{ form.institution | bootstrap }}
-              {{ form.job_title | bootstrap }}
-            </div>
-          </div>
-        {% endfor %}
+      <div class="col-md-12">
+        <p class="declaring-as" id="identity-summary"></p>
+      </div>
+    </div>
+
+    <div class="row box" id="picker">
+      <div class="col-md-12">
+        <h2>Section 2: What would you like to declare?</h2>
+        <p>Choose a class of declaration. You can add as many as you need, one at a time.</p>
+        <div class="cat-grid" id="cat-grid"></div>
+        <button type="button" class="btn btn-default" id="btn-nothing">I have nothing to declare</button>
+      </div>
+    </div>
+
+    <div class="row box hidden" id="cat-form">
+      <div class="col-md-8">
+        <h2 id="cat-form-title"></h2>
+        <fieldset id="cat-subs-wrap">
+          <legend id="cat-subs-legend">This relates to</legend>
+          <div id="cat-subs"></div>
+        </fieldset>
+
+        <div class="form-group" id="band-field">
+          <label class="control-label" for="cat-band">Income band</label>
+          <select class="form-control" id="cat-band"></select>
+        </div>
+
+        <div class="form-group">
+          <label class="control-label" for="cat-details">Details</label>
+          <p class="help-block" id="cat-details-hint">Who paid, what for, and anything else the public should know.</p>
+          <textarea class="form-control" id="cat-details" rows="4"></textarea>
+        </div>
+
+        <p class="text-danger hidden" id="cat-error" role="alert"></p>
+        <button type="button" class="btn btn-primary" id="btn-add-record">Add this declaration</button>
+        <button type="button" class="btn btn-default" id="btn-cancel-cat">Cancel</button>
+      </div>
+    </div>
+
+    <div class="row box hidden" id="after-add">
+      <div class="col-md-12">
+        <h3>Declaration added.</h3>
+        <button type="button" class="btn btn-default" id="btn-add-another">Add another declaration</button>
+        <button type="button" class="btn btn-primary" id="btn-all-finished">All finished</button>
       </div>
     </div>
 
     <div class="row box">
       <div class="col-md-12">
-        <h2 class="">
-          Section 3: Declaration
-        </h2>
-
-        {{ detaileddeclarationinline.management_form }}
-
-        {% for form in detaileddeclarationinline.forms %}
-          <div class="row">
-            <div class="col-md-6">
-              {{ form.for_year | bootstrap }}
-            </div>
-            <div class="col-md-3 col-md-offset-3">
-              <button value="1"
-                      name="detaileddeclaration_set-0-nothing_to_declare" class="btn btn-default"
-                      type="submit">
-                Nothing to declare.
-              </button>
-            </div>
-          </div>
-
-        <div class="row declaration-section">
-          <h3 class="col-md-12">
-            Consultancy
-          </h3>
-          <div class="col-md-6">
-            {{ form.pharmaceutical_companies | bootstrap }}
-            {{ form.technology_companies | bootstrap }}
-            {{ form.consultancy_other | bootstrap }}
-            <div class="row">
-              <div class="col-md-6">
-                  {{ form.consultancy_band | bootstrap }}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            {{ form.consultancy_details | bootstrap }}
-          </div>
-        </div>
-
-        <div class="row declaration-section">
-          <h3 class="col-md-12">
-            Academic
-          </h3>
-          <div class="col-md-6">
-            {{ form.research_grants | bootstrap }}
-            {{ form.academic_other | bootstrap }}
-            <div class="row">
-              <div class="col-md-6">
-                {{ form.academic_band | bootstrap }}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            {{ form.academic_details | bootstrap }}
-          </div>
-        </div>
-
-        <div class="row declaration-section">
-          <h3 class="col-md-12">
-            Other work
-          </h3>
-          <div class="col-md-6">
-            {{ form.public_relations | bootstrap }}
-            {{ form.commercial_relationships | bootstrap }}
-            {{ form.media | bootstrap }}
-            <div class="row">
-              <div class="col-md-6">
-                {{ form.other_work_band | bootstrap }}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            {{ form.other_work_details | bootstrap }}
-          </div>
-        </div>
-
-        <div class="row declaration-section">
-          <h3 class="col-md-12">
-            Financial
-          </h3>
-          <div class="col-md-6">
-            {{ form.patents_owned | bootstrap }}
-            {{ form.shares | bootstrap }}
-            <div class="row">
-              <div class="col-md-6">
-                {{ form.financial_band | bootstrap }}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            {{ form.financial_details | bootstrap }}
-          </div>
-        </div>
-
-        <div class="row declaration-section">
-          <h3 class="col-md-12">
-            Spousal
-          </h3>
-          <div class="col-md-6">
-            <div class="row">
-              <div class="col-md-6">
-                {{ form.spousal_band | bootstrap }}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            {{ form.spousal_details | bootstrap }}
-          </div>
-        </div>
-
-        <div class="row declaration-section">
-          <h3 class="col-md-12">
-            Sponsored
-          </h3>
-          <div class="col-md-6">
-            {{ form.conferences | bootstrap }}
-            {{ form.meals | bootstrap }}
-            <div class="row">
-              <div class="col-md-6">
-                {{ form.sponsored_band | bootstrap }}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            {{ form.sponsored_details | bootstrap }}
-          </div>
-        </div>
-
-        <div class="row declaration-section">
-          <h3 class="col-md-12">
-            Political
-          </h3>
-          <div class="col-md-6">
-            <div class="row">
-              <div class="col-md-6">
-                {{ form.political_band | bootstrap }}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            {{ form.political_details | bootstrap }}
-          </div>
-        </div>
-
-        {% endfor %}
-
-      </div>
-    </div>
-
-
-    <div class="row">
-      <div class="box">
-        <div class="col-lg-12">
-          <center>
-            <button class="btn btn-default" type="submit">Make my declaration</button>
-          </center>
+        <h2>Your declarations so far</h2>
+        <div id="ledger" aria-live="polite">
+          <p class="ledger-empty">Nothing added yet.</p>
         </div>
       </div>
     </div>
 
+    <div class="row box hidden" id="submit-panel">
+      <div class="col-md-12">
+        <h2>Make your declaration</h2>
+        <p>Check the records above, then submit. Your declaration will appear on the public register.</p>
+        <button type="submit" form="declare-form" class="btn btn-primary" id="btn-submit">Make my declaration</button>
+        <button type="button" class="btn btn-default" id="btn-back-to-picker">Add more first</button>
+      </div>
+    </div>
 
-  </form>
+  </div>
 
 {% endblock %}
 
 {% block extrajs %}
-  <script type="text/javascript" src="/static/jquery.formset.js"></script>
-  <script type="text/javascript">
-    // var displaySubsections = function($el){
-    //     if($el.prop("checked")){
-    //       $el.closest(".sub-section-title").parent().addClass("show");
-    //     }
-    //     else{
-    //       $el.closest(".sub-section-title").parent().removeClass("show");
-    //     }
-    // }
-
-    $(document).ready(function(){
-
-    // Add many for the work details
-    $('.work-details').formset({prefix:'{{workdetailsinline.prefix}}', addCssClass: 'btn btn-default'});
-
-    // $(".sub-section-title input").each(function(i, el){
-    //   displaySubsections($(el))
-    // });
-
-    // $(".sub-section-title input").change(function(){
-    //   var $this = $(this);
-    //   displaySubsections($this);
-    // });
-    });
-  </script>
+  {# If the form comes back with errors, declare.js puts these back in the list. #}
+  {{ request.POST.declaration_records|json_script:"posted-declaration-records" }}
+  <script src="{% static 'declare.js' %}"></script>
 {% endblock %}

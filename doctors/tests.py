@@ -125,6 +125,23 @@ class LinkOwnershipTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.victim.detaileddeclaration_set.count(), 1)
 
+    def test_employment_address_is_saved_blank(self):
+        # No longer on the form: new and returning doctors both get "".
+        link = models.DeclarationLink.objects.create(email="new@nhs.net")
+        self.client.post(
+            reverse("declare", kwargs={"key": link.key}),
+            declaration_post_data(employment_address="1 Hospital Road"),
+        )
+        doctor = models.Doctor.objects.get(gmc_number="7654321")
+        self.assertEqual(doctor.employment_address, "")
+
+        self.client.post(
+            self.add_url(self.victim_link),
+            declaration_post_data(name="Victim", gmc_number="1111111"),
+        )
+        self.victim.refresh_from_db()
+        self.assertEqual(self.victim.employment_address, "")
+
     def test_declare_redirects_existing_doctor_to_add(self):
         response = self.client.get(
             reverse("declare", kwargs={"key": self.victim_link.key})
@@ -150,6 +167,41 @@ class LinkOwnershipTest(TestCase):
         self.victim_link.expires = timezone.now() - timedelta(days=1)
         self.victim_link.save()
         self.assertEqual(self.client.get(self.add_url(self.victim_link)).status_code, 404)
+
+
+@PLAIN_STATIC
+class DeclareFormTemplateTest(TestCase):
+    def setUp(self):
+        self.doctor = models.Doctor.objects.create(
+            name="Dr Returning", gmc_number="3333333", job_title="Consultant",
+            primary_employer="An NHS Trust", employment_address="z",
+            email="returning@nhs.net",
+        )
+        link = models.DeclarationLink.objects.create(email="returning@nhs.net")
+        self.url = reverse("add", kwargs={"pk": self.doctor.pk, "key": link.key})
+
+    def test_section_1_posts_with_the_doctor_form_field_names(self):
+        html = self.client.get(self.url).content.decode()
+        for name, value in [("name", "Dr Returning"), ("job_title", "Consultant"),
+                            ("primary_employer", "An NHS Trust"),
+                            ("gmc_number", "3333333")]:
+            self.assertRegex(html, rf'name="{name}"[^>]*value="{value}"')
+        # Section 2 goes up in new fields, which declare.js fills in.
+        self.assertIn('name="declaration"', html)
+        self.assertIn('name="declaration_records"', html)
+
+    def test_posted_declarations_come_back_safely_with_errors(self):
+        response = self.client.post(self.url, {
+            "name": "",
+            "job_title": "Consultant",
+            "primary_employer": "An NHS Trust",
+            "gmc_number": "3333333",
+            "declaration": "## Declaration",
+            "declaration_records": '[{"details": "</script><script>alert(1)</script>"}]',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="posted-declaration-records"')
+        self.assertNotContains(response, "<script>alert(1)</script>")
 
 
 class DoctorJSONTest(TestCase):

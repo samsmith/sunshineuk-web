@@ -260,12 +260,82 @@ input.form-control{
 /* --------
 Declare Form
 ----------*/
-.row .work-details {
-    margin-bottom: 48px;
+.declaring-as {
+  margin: 0;
 }
 
-.declaration-section {
-    margin-bottom: 48px;
+#declare-form .help-block,
+#cat-form .help-block {
+  font-size: 14px;
+  margin-top: 0;
+}
+
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.cat-grid .btn {
+  padding: 12px 14px;
+  text-align: left;
+  white-space: normal;
+}
+
+.cat-note {
+  color: #666;
+  display: block;
+  font-size: 0.85em;
+  margin-top: 2px;
+}
+
+#cat-form legend {
+  border: 0;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 0;
+}
+
+#cat-form .btn + .btn,
+#after-add .btn + .btn,
+#submit-panel .btn + .btn {
+  margin-left: 8px;
+}
+
+.record {
+  background: #fff;
+  border: 1px solid #D0DDE2;
+  border-left: 4px solid #1A3862;
+  border-radius: 4px;
+  margin: 8px 0;
+  padding: 10px 44px 10px 14px;
+  position: relative;
+}
+
+.record--employment,
+.record--nothing {
+  border-left-color: #8FA4BF;
+}
+
+.record-title {
+  display: block;
+  font-weight: bold;
+}
+
+.record-body {
+  color: #444;
+}
+
+.record-remove {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+}
+
+.ledger-empty {
+  color: #666;
+  font-style: italic;
 }
 
 /* --------

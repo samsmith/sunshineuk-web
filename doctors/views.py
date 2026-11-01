@@ -60,7 +60,8 @@ class ReEstablishIdentityView(FormView):
 class AbstractDeclareView():
     model = models.Doctor
     template_name = 'declare.html'
-    fields = '__all__'
+    # The four fields on section 1 of the form.
+    fields = ['name', 'gmc_number', 'job_title', 'primary_employer']
 
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
@@ -105,6 +106,9 @@ class AbstractDeclareView():
         # The verified email is the one the link was sent to; never trust
         # an email typed into the form.
         form.instance.email = self.link.email
+        # The form no longer asks for an employment address, and the column
+        # can't be null, so it's stored as an empty string.
+        form.instance.employment_address = ""
         self.object = form.save()
         detailed_declaration_form = detailed_declarations[0]
         detailed_declaration = detailed_declaration_form.save(commit=False)
