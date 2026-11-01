@@ -30,6 +30,18 @@ table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):after {
 }
 
 /* --------
+Site notice: full-width strip at the very top of every page
+----------*/
+
+.site-notice {
+  background: #1A3862;
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+  padding: 10px 15px;
+}
+
+/* --------
 Brand
 ----------*/
 
