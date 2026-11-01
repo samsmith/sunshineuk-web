@@ -2,11 +2,10 @@
 Models for Sunshine UK.
 """
 import datetime as dt
-import hashlib
-import random
+import secrets
 
 from django.conf import settings
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse
 from django.db import models
 from django.utils import timezone
 
@@ -70,7 +69,7 @@ class Declaration(models.Model):
     past_declarations = models.TextField(blank=True, null=True)
     other_declarations = models.TextField(blank=True, null=True)
     date_created = models.DateField(default=dt.date.today)
-    dt_created = models.DateTimeField(default=dt.datetime.now)
+    dt_created = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f'{self.doctor} - {self.date_created}'
@@ -135,21 +134,18 @@ class OtherMedicalBenefit(Benefit): pass
 class FeeBenefit(Benefit): pass
 class GrantBenefit(Benefit): pass
 
-def random_token(extra=None, hash_func=hashlib.sha256):
-    if extra is None:
-        extra = []
-    bits = extra + [str(random.SystemRandom().getrandbits(512))]
-    return hash_func("".join(bits).encode('utf-8')).hexdigest()[:8]
+def random_token():
+    """
+    An unguessable, URL-safe key for emailed links. (Referenced by migration
+    0001, so keep the name.) Used to be 8 hex characters, i.e. 32 bits.
+    """
+    return secrets.token_urlsafe(24)
 
 def in_one_day():
-    now = dt.datetime.now()
-    then = now + dt.timedelta(days=1)
-    return then
+    return timezone.now() + dt.timedelta(days=1)
 
 def in_two_weeks():
-    now = dt.datetime.now()
-    then = now + dt.timedelta(days=14)
-    return then
+    return timezone.now() + dt.timedelta(days=14)
 
 
 class DeclarationLink(models.Model):
@@ -193,7 +189,7 @@ class DeclarationLink(models.Model):
             )
 
     def new_key(self):
-        self.key = random_token()[:8]
+        self.key = random_token()
         self.save()
         return
 

@@ -1,15 +1,12 @@
 """
 Urls for Whopays This Doctor
 """
-from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from django.urls import include, path
-from django.views.generic import TemplateView
-from . import views
-
 from django.contrib import admin
-admin.autodiscover()
+from django.urls import path
+from django.views.generic import TemplateView
 
 import doctors.views
+from . import views
 
 urlpatterns = [
     # Generic Website Tat
@@ -72,5 +69,3 @@ urlpatterns = [
     ),
     path('admin/', admin.site.urls),
 ]
-
-urlpatterns += staticfiles_urlpatterns()

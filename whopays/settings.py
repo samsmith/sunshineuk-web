@@ -1,84 +1,73 @@
 # Django settings for whopays project.
+#
+# Configuration comes from environment variables. For local development you
+# can instead override anything in whopays/local_settings.py, which is not
+# committed.
 import os
 
 import dj_database_url
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DEBUG = False
-TEMPLATE_DEBUG = DEBUG
+DEBUG = os.environ.get('DEBUG', '') == '1'
 
 ADMINS = (
     ('Support', 'support@openhealthcare.org.uk'),
 )
 
 MANAGERS = ADMINS
-DATABASES = {'default': dj_database_url.config(default='sqlite:///whopays.sqlite')}
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default='sqlite:///whopays.sqlite',
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+}
 
 ALLOWED_HOSTS = [
     'localhost',
     '.herokuapp.com',
     '.sunshineuk.org',
     '.whopaysthisdoctor.org',
-    ]
+]
+
 TIME_ZONE = 'UTC'
 LANGUAGE_CODE = 'en-us'
 
 SITE_ID = 1
 
-# If you set this to False, Django will make some optimizations so as not
-# to load the internationalization machinery.
 USE_I18N = True
-
-# If you set this to False, Django will not format dates, numbers and
-# calendars according to the current locale.
-USE_L10N = True
-
-# If you set this to False, Django will not use timezone-aware datetimes.
 USE_TZ = True
 
+# Existing tables use 32 bit AutoField primary keys. Keep it that way: moving
+# to BigAutoField would need a migration for every table.
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
 # Absolute filesystem path to the directory that will hold user-uploaded files.
-# Example: "/home/media/media.lawrence.com/media/"
 MEDIA_ROOT = ''
 
-# URL that handles the media served from MEDIA_ROOT. Make sure to use a
-# trailing slash.
-# Examples: "http://media.lawrence.com/media/", "http://example.com/media/"
+# URL that handles the media served from MEDIA_ROOT.
 MEDIA_URL = ''
 
-# Absolute path to the directory static files should be collected to.
-# Don't put anything in this directory yourself; store your static files
-# in apps' "static/" subdirectories and in STATICFILES_DIRS.
-# Example: "/home/media/media.lawrence.com/static/"
-STATIC_ROOT = "static"
-
-# URL prefix for static files.
-# Example: "http://media.lawrence.com/static/"
+# `collectstatic` gathers static files here (git-ignored); WhiteNoise serves
+# them. Heroku runs collectstatic automatically on deploy.
+STATIC_ROOT = os.path.join(ROOT, 'static')
 STATIC_URL = '/static/'
-WHITENOISE_STATIC_PREFIX = "/static/"
 
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
-# List of finder classes that know how to find static files in
-# various locations.
-STATICFILES_FINDERS = (
-    'django.contrib.staticfiles.finders.FileSystemFinder',
-    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
-#    'django.contrib.staticfiles.finders.DefaultStorageFinder',
-)
-STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.CachedStaticFilesStorage'
-
-# Make this unique, and don't share it with anybody.
-SECRET_KEY = '3rl78ttqq%-pb--4+6)*5o9^w(e=90s+_ab-7ugl*jxh6pqq-d'
-
-# MIDDLEWARE_CLASSES = (
-#     'django.middleware.common.CommonMiddleware',
-#     'django.contrib.sessions.middleware.SessionMiddleware',
-#     'django.middleware.csrf.CsrfViewMiddleware',
-#     'django.contrib.auth.middleware.AuthenticationMiddleware',
-#     'django.contrib.messages.middleware.MessageMiddleware',
-#     # Uncomment the next line for simple clickjacking protection:
-#     # 'django.middleware.clickjacking.XFrameOptionsMiddleware',
-# )
+# Set the SECRET_KEY environment variable (or define SECRET_KEY in
+# whopays/local_settings.py for development). The previous key was committed
+# to the repository and must be treated as compromised.
+SECRET_KEY = os.environ.get('SECRET_KEY', '')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -93,31 +82,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'whopays.urls'
 
-# Python dotted path to the WSGI application used by Django's runserver.
 WSGI_APPLICATION = 'whopays.wsgi.application'
-
-# TEMPLATE_DIRS = (
-#     os.path.join(ROOT, 'templates'),
-# )
-
-# TEMPLATE_CONTEXT_PROCESSORS= (
-#     'django.contrib.auth.context_processors.auth',
-#     'django.core.context_processors.debug',
-#     'django.core.context_processors.i18n',
-#     'django.core.context_processors.media',
-#     'django.core.context_processors.request',
-#     'django.core.context_processors.static',
-#     'django.core.context_processors.tz',
-#     'django.contrib.messages.context_processors.messages',
-#     'whopays.context_processors.settings_processor',
-# )
-
-# # List of callables that know how to import templates from various sources.
-# TEMPLATE_LOADERS = (
-#     'django.template.loaders.filesystem.Loader',
-#     'django.template.loaders.app_directories.Loader',
-# #     'django.template.loaders.eggs.Loader',
-# )
 
 TEMPLATES = [
     {
@@ -145,17 +110,16 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'django.contrib.admin',
     'reversion',
-    'bootstrapform',
     'markdown_deux',
     'whopays',
     'doctors'
 )
 
-# A sample logging configuration. The only tangible logging
-# performed by this configuration is to send an email to
-# the site admins on every HTTP 500 error when DEBUG=False.
-# See http://docs.djangoproject.com/en/dev/topics/logging for
-# more details on how to customize your logging configuration.
+# Log to stdout (Heroku collects it), and email ADMINS about server errors
+# (only when DEBUG is off).
+V_FORMAT = '%(asctime)s %(process)d %(thread)d %(filename)s %(funcName)s \
+%(levelname)s %(message)s'
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -164,57 +128,6 @@ LOGGING = {
             '()': 'django.utils.log.RequireDebugFalse'
         }
     },
-    'handlers': {
-        'mail_admins': {
-            'level': 'ERROR',
-            'filters': ['require_debug_false'],
-            'class': 'django.utils.log.AdminEmailHandler'
-        }
-    },
-    'loggers': {
-        'django.request': {
-            'handlers': ['mail_admins'],
-            'level': 'ERROR',
-            'propagate': True,
-        },
-    }
-}
-
-# Honor the 'X-Forwarded-Proto' header for request.is_secure()
-# (Heroku requirement)
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-CSRF_COOKIE_NAME = 'XSRF-TOKEN'
-DEFAULT_FROM_EMAIL = 'hello@sunshineuk.org'
-CONTACT_EMAIL = DEFAULT_FROM_EMAIL
-DEFAULT_DOMAIN = os.environ.get('DEFAULT_DOMAIN', 'www.sunshineuk.org')
-
-
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-
-
-SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
-EMAIL_HOST= 'smtp.sendgrid.net'
-#EMAIL_HOST_USER = os.environ.get('SENDGRID_USERNAME', '')
-EMAIL_HOST_USER = 'apikey' # this is exactly the value 'apikey'
-#EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_PASSWORD', '')
-EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
-
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-
-SKIP_EMAIL_VERIFICATION = False
-
-
-NHS_EMAIL_SUFFIXES = ['nhs.net', 'nhs.uk', 'nhs.scot', 'hscni.net', 'ac.uk', 'doctors.org.uk', 'doctors.net.uk', 'cochrane.org']
-ADMIN_SUFFIXES = ['openhealthcare.org.uk', 'deadpansincerity.com', 'msmith.net']
-ALL_SUFFIXES = NHS_EMAIL_SUFFIXES + ADMIN_SUFFIXES
-
-V_FORMAT = '%(asctime)s %(process)d %(thread)d %(filename)s %(funcName)s \
-%(levelname)s %(message)s'
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
             'format': V_FORMAT
@@ -227,17 +140,70 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose'
         },
+        'mail_admins': {
+            'level': 'ERROR',
+            'filters': ['require_debug_false'],
+            'class': 'django.utils.log.AdminEmailHandler'
+        },
     },
     'loggers': {
         'django.request': {
-            'handlers': ['console_detailed'],
+            'handlers': ['console_detailed', 'mail_admins'],
             'level': 'INFO',
             'propagate': True,
+        },
+        # Bots send junk Host headers all day: log them, don't email them.
+        'django.security.DisallowedHost': {
+            'handlers': ['console_detailed'],
+            'propagate': False,
         },
     }
 }
 
+# Honor the 'X-Forwarded-Proto' header for request.is_secure()
+# (Heroku requirement)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_COOKIE_NAME = 'XSRF-TOKEN'
+
+# Set FORCE_HTTPS=1 in production: redirects http to https and marks the
+# session and CSRF cookies secure-only. It is opt-in so that local development
+# and the test suite (plain http) keep working.
+FORCE_HTTPS = os.environ.get('FORCE_HTTPS', '') == '1'
+SECURE_SSL_REDIRECT = FORCE_HTTPS
+SESSION_COOKIE_SECURE = FORCE_HTTPS
+CSRF_COOKIE_SECURE = FORCE_HTTPS
+# HSTS is hard to undo, so start small: e.g. SECURE_HSTS_SECONDS=3600, then
+# raise it once you are sure every subdomain serves https.
+SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '0'))
+
+DEFAULT_FROM_EMAIL = 'hello@sunshineuk.org'
+CONTACT_EMAIL = DEFAULT_FROM_EMAIL
+DEFAULT_DOMAIN = os.environ.get('DEFAULT_DOMAIN', 'www.sunshineuk.org')
+
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+EMAIL_HOST = 'smtp.sendgrid.net'
+EMAIL_HOST_USER = 'apikey'  # this is exactly the value 'apikey'
+EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+# Don't let a slow mail server hang a web request (the default is no timeout).
+EMAIL_TIMEOUT = 10
+
+SKIP_EMAIL_VERIFICATION = False
+
+NHS_EMAIL_SUFFIXES = ['nhs.net', 'nhs.uk', 'nhs.scot', 'hscni.net', 'ac.uk', 'doctors.org.uk', 'doctors.net.uk', 'cochrane.org']
+ADMIN_SUFFIXES = ['openhealthcare.org.uk', 'deadpansincerity.com', 'msmith.net']
+ALL_SUFFIXES = NHS_EMAIL_SUFFIXES + ADMIN_SUFFIXES
+
 try:
-    from whopays.local_settings import *
-except:
+    from whopays.local_settings import *  # noqa: F401,F403
+except ImportError:
     pass
+
+if not SECRET_KEY:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'SECRET_KEY is not set: set the SECRET_KEY environment variable.'
+    )

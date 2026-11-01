@@ -10,10 +10,27 @@ from django.forms.models import ModelForm, inlineformset_factory
 
 from doctors.models import DeclarationLink, Doctor, DetailedDeclaration, WorkDetails
 
+def email_domain_allowed(email, suffixes):
+    """
+    True if the email's domain is one of the suffixes or a subdomain of one,
+    e.g. 'nhs.uk' allows 'nhs.uk' and 'trust.nhs.uk' but not 'notnhs.uk'.
+    """
+    domain = email.rsplit('@', 1)[-1].lower()
+    return any(
+        domain == suffix or domain.endswith('.' + suffix)
+        for suffix in suffixes
+    )
+
+
 class NHSEmailField(forms.EmailField):
+    def to_python(self, value):
+        # Addresses are case-insensitive for our purposes; store one form so
+        # the same person can't end up with several links/records.
+        return super(NHSEmailField, self).to_python(value).lower()
+
     def validate(self, value):
         super(NHSEmailField, self).validate(value)
-        if not any(value.endswith(x) for x in settings.ALL_SUFFIXES):
+        if value and not email_domain_allowed(value, settings.ALL_SUFFIXES):
             raise forms.ValidationError('Email must end in one of {0}'.format(', '.join(settings.NHS_EMAIL_SUFFIXES)))
 
 class DoctorForm(ModelForm):
@@ -60,8 +77,8 @@ class ReEstablishIdentityForm(DeclarationIdentityForm):
 
         if email:
             gmc = self.cleaned_data['gmc']
-            doctor = Doctor.objects.get(gmc_number=gmc)
-            if doctor.email != email:
+            doctor = Doctor.objects.filter(gmc_number=gmc).first()
+            if doctor is None or (doctor.email or '').lower() != email:
                 raise forms.ValidationError('A different email address was used to submit declarations for that doctor in the past')
         return self.cleaned_data
 

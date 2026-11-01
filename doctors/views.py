@@ -9,28 +9,13 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.urls import reverse_lazy, reverse
-from django.http import HttpResponse, HttpResponseRedirect, Http404
+from django.http import Http404, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.views.generic import ListView, DetailView
 from django.views.generic.edit import FormView, CreateView, UpdateView
-from extra_views import CreateWithInlinesView, InlineFormSet, UpdateWithInlinesView
-from extra_views import NamedFormsetsMixin
-import json
 
 from doctors import models, forms
-
-class JsonResponse(HttpResponse):
-    """
-    JSON response
-    """
-    def __init__(self, content, mimetype='application/json', status=None, content_type=None):
-        super(JsonResponse, self).__init__(
-            content=json.dumps(content),
-            mimetype=mimetype,
-            status=status,
-            content_type=content_type,
-        )
 
 class EstablishIdentityView(FormView):
     """
@@ -70,58 +55,6 @@ class ReEstablishIdentityView(FormView):
     def form_valid(self, form):
         form.create_declaration_link()
         return super(ReEstablishIdentityView, self).form_valid(form)
-
-
-class DeclarationInline(InlineFormSet):
-    model = models.Declaration
-    form_class = forms.DeclarationForm
-    factory_kwargs = {'max_num': 1}
-
-    def get_formset_kwargs(self):
-        kw = super(DeclarationInline, self).get_formset_kwargs()
-        kw['queryset'] = models.Declaration.objects.none()
-        return kw
-
-
-class PharmaBenefitInline(InlineFormSet):
-    model = models.PharmaBenefit
-    form_class = forms.BenefitForm
-    factory_kwargs = {'extra': 3, 'can_delete': False}
-
-    def get_formset_kwargs(self):
-        kw = super(PharmaBenefitInline, self).get_formset_kwargs()
-        kw['queryset'] = models.PharmaBenefit.objects.none()
-        return kw
-
-
-class OtherMedicalBenefitInline(InlineFormSet):
-    model = models.OtherMedicalBenefit
-    form_class = forms.BenefitForm
-    factory_kwargs = {'can_delete':False}
-    def get_formset_kwargs(self):
-        kw = super(OtherMedicalBenefitInline, self).get_formset_kwargs()
-        kw['queryset'] = models.OtherMedicalBenefit.objects.none()
-        return kw
-
-
-class FeeBenefitInline(InlineFormSet):
-    model = models.FeeBenefit
-    form_class = forms.BenefitForm
-    factory_kwargs = {'can_delete': False}
-    def get_formset_kwargs(self):
-        kw = super(FeeBenefitInline, self).get_formset_kwargs()
-        kw['queryset'] = models.FeeBenefit.objects.none()
-        return kw
-
-
-class GrantBenefitInline(InlineFormSet):
-    model = models.GrantBenefit
-    form_class = forms.BenefitForm
-    factory_kwargs = {'can_delete': False}
-    def get_formset_kwargs(self):
-        kw = super(GrantBenefitInline, self).get_formset_kwargs()
-        kw['queryset'] = models.GrantBenefit.objects.none()
-        return kw
 
 
 class AbstractDeclareView():
@@ -169,6 +102,9 @@ class AbstractDeclareView():
         if not self.is_valid():
             return self.form_invalid(form)
 
+        # The verified email is the one the link was sent to; never trust
+        # an email typed into the form.
+        form.instance.email = self.link.email
         self.object = form.save()
         detailed_declaration_form = detailed_declarations[0]
         detailed_declaration = detailed_declaration_form.save(commit=False)
@@ -189,11 +125,13 @@ class AbstractDeclareView():
 class DeclareView(AbstractDeclareView, CreateView):
     def dispatch(self, *args, **kwargs):
         link = get_object_or_404(models.DeclarationLink, key=kwargs['key'])
-        if link.expires < timezone.now():
+        if link.expired:
             raise Http404
-        doctor = models.Doctor.objects.filter(email=link.email).count()
-        if doctor > 0:
-            kwargs['pk'] = models.Doctor.objects.get(email=link.email).pk
+        doctor = models.Doctor.objects.filter(
+            email__iexact=link.email
+        ).first()
+        if doctor is not None:
+            kwargs['pk'] = doctor.pk
             return redirect(reverse('add', kwargs=kwargs))
         self.link = link
         return super().dispatch(*args, **kwargs)
@@ -207,8 +145,13 @@ class DeclareView(AbstractDeclareView, CreateView):
 class AddDeclarationView(AbstractDeclareView, UpdateView):
     def dispatch(self, *args, **kwargs):
         link = get_object_or_404(models.DeclarationLink, key=kwargs['key'])
-        if link.expires < timezone.now():
+        if link.expired:
             raise Http404
+        # The link only proves control of one email address, so it may only
+        # be used to edit the doctor registered under that address.
+        get_object_or_404(
+            models.Doctor, pk=kwargs['pk'], email__iexact=link.email
+        )
         self.link = link
         return super().dispatch(*args, **kwargs)
 
@@ -253,7 +196,7 @@ class DoctorListView(ListView):
 
     # This is dynamic to avoid the date being process-start bounded.
     def get_queryset(self):
-        an_hour_ago = dt.datetime.now()-dt.timedelta(hours=1)
+        an_hour_ago = timezone.now() - dt.timedelta(hours=1)
         qs = models.Doctor.objects.filter(
             Q(detaileddeclaration__dt_created__lte=an_hour_ago) |
             Q(detaileddeclaration=None)
