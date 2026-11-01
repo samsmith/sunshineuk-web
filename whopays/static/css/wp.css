@@ -239,6 +239,13 @@ input.form-control{
   display: none;
 }
 
+/* Doctor list rows stay hidden while the scripts in doctors/doctor_list.html
+   shuffle them. Those scripts add and remove the class, so without JavaScript
+   nothing is hidden. */
+.shuffling-doctors #doctor-table tr.doctor {
+  visibility: hidden;
+}
+
 
 .identifiers {
     margin-top: 32px;

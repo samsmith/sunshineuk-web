@@ -10,6 +10,11 @@
             <input type="text" id="search-field" placeholder="e.g. by surname or where they work" />
           </label>
         </div>
+        <script>
+          // Hide the doctor rows until the script after the table has shuffled
+          // them, so the name order never shows. (No JavaScript: nothing hidden.)
+          document.documentElement.classList.add('shuffling-doctors');
+        </script>
         <table class="table sortable" id="doctor-table">
           <tr>
             <th>Name</th>
@@ -31,6 +36,36 @@
           {% endfor %}
           <tr id="no-results"><td colspan="4">No results found</td></tr>
         </table>
+        <script>
+          // Show the doctors in a random order on each visit, so no one is always
+          // at the top. The HTML stays in name order; only the browser reorders.
+          // This runs as soon as the table has been read, before the rows show.
+          (function () {
+            try {
+              var rows = Array.prototype.slice.call(
+                document.querySelectorAll('#doctor-table tr.doctor')
+              );
+              if (rows.length < 2) return;
+              var parent = rows[0].parentNode;
+              var after = rows[rows.length - 1].nextSibling;
+              // Fisher-Yates shuffle.
+              for (var i = rows.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var swap = rows[i];
+                rows[i] = rows[j];
+                rows[j] = swap;
+              }
+              var shuffled = document.createDocumentFragment();
+              for (var k = 0; k < rows.length; k++) {
+                shuffled.appendChild(rows[k]);
+              }
+              // Same place as before: after the header, before "No results".
+              parent.insertBefore(shuffled, after);
+            } finally {
+              document.documentElement.classList.remove('shuffling-doctors');
+            }
+          })();
+        </script>
       </div>
     </div>
   </div>

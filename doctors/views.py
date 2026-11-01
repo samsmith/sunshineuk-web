@@ -202,8 +202,10 @@ class DoctorListView(ListView):
             Q(detaileddeclaration=None)
         )
 
+        # Always the same order in the HTML (the browser shuffles it for
+        # display); the id breaks ties between doctors with the same name.
         return qs.distinct().order_by(
-            "name"
+            "name", "pk"
         )
 
 
