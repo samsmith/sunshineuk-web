@@ -1,0 +1,11 @@
+{
+  "name": "whopaysthisdoctor",
+  "description": "Register of doctors' declared interests (sunshineuk.org)",
+  "stack": "heroku-26",
+  "buildpacks": [{ "url": "heroku/python" }],
+  "env": {
+    "SECRET_KEY": { "generator": "secret" },
+    "FORCE_HTTPS": { "value": "1" }
+  },
+  "addons": [{ "plan": "heroku-postgresql:essential-0" }]
+}
