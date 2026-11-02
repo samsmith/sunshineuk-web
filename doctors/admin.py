@@ -26,7 +26,12 @@ class WorkDetailsInline(admin.StackedInline):
     model = models.WorkDetails
 
 class DoctorAdmin(VersionAdmin):
-    pass
+    def response_delete(self, request, obj_display, obj_id):
+        # Deleting from the dashboard's search results goes back there.
+        response = super().response_delete(request, obj_display, obj_id)
+        if request.GET.get("from") == "dashboard":
+            return redirect("admin:index")
+        return response
 
 class DeclarationAdmin(VersionAdmin):
     inlines = (PharmaBenefitInline, OtherMedicalBenefitInline,
@@ -37,7 +42,8 @@ class DeclarationAdmin(VersionAdmin):
 
 class DeclarationLinkAdmin(admin.ModelAdmin):
     search_fields = ['email']
-    list_display = ['email', 'expires', 'key']
+    list_display = ['email', 'issued', 'expires', 'key']
+    ordering = ['-issued']
 
 
 class DetailedDeclarationAdmin(VersionAdmin):

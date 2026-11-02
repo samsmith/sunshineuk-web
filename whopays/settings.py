@@ -108,7 +108,8 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.admin',
+    # The admin, with the Sunshine UK dashboard as its home page.
+    'doctors.admin_apps.SunshineAdminConfig',
     'reversion',
     'markdown_deux',
     'whopays',

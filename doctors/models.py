@@ -109,6 +109,12 @@ class DeclarationLink(models.Model):
     email = models.EmailField(unique=True)
     expires = models.DateTimeField(default=in_two_weeks)
     key = models.CharField(max_length=64, unique=True, default=random_token)
+    # When the current key was made (a fresh key counts as a new link). For
+    # links from before this field, migration 0008 estimates it from expires.
+    issued = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return self.email
 
     @property
     def expired(self):
@@ -147,6 +153,7 @@ class DeclarationLink(models.Model):
 
     def new_key(self):
         self.key = random_token()
+        self.issued = timezone.now()
         self.save()
         return
 
