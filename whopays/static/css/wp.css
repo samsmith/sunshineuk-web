@@ -97,6 +97,32 @@ Navbar
    margin-left: 12px;
 }
 
+/* Between tablet width and 1200px the navbar used to wrap onto two rows.
+   Instead, the link padding, text and search box shrink with the window,
+   growing back towards the full-width sizes (35px padding, 1.25em text,
+   360px search box) as it widens. Full width and the collapsed menu below
+   768px are unchanged. */
+@media (min-width: 768px) and (max-width: 1199.98px) {
+  .navbar-default .navbar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    font-size: clamp(1.1em, calc(0.6em + 0.9vw), 1.25em);
+  }
+  .navbar-default .navbar-nav > li {
+    float: none;
+    flex: 0 0 auto;
+  }
+  .navbar-default .navbar-nav > li > a {
+    padding: 16px clamp(10px, calc(4.5vw - 19px), 35px);
+  }
+  .nav input {
+    min-width: 0;
+    width: clamp(140px, calc(37vw - 84px), 360px);
+  }
+}
+
 /* --------
 Content
 ----------*/
