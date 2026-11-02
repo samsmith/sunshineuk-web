@@ -24,11 +24,13 @@
                 {{form.email|bootstrap}}
                 <p class="small muted">
                   Only email addresses ending in  {% for suffix in NHS_EMAIL_SUFFIXES %}{{suffix}}{% if forloop.revcounter == 2 %} or {% elif forloop.revcounter > 1 %}, {% endif %}{% endfor %} can be used.<br />
-                  If you don't have access to one of those, email hello&#64;sunshineuk.org and we'll sort you out.
+                  If you don't have access to one of those or the email address you registered with has changed, 
+		  email hello&#64;sunshineuk.org and we'll sort you out.
                 </p>
                 <button class="btn btn-default" type="submit">Submit</button>
               </form>
             </center>
+	    <p>The basis for all processing is your consent &mdash; your entries can be deleted at any time.</p>
           </div>
         </div>
       </div>
