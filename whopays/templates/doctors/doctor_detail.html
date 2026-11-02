@@ -24,6 +24,19 @@
     </div>
   </div>
 
+  {# Declarations made with the current form, newest first. #}
+  {% for declaration in doctor.declarationv3_set.all %}
+    <div class="row box">
+      <div class="col-md-12">
+        {{ declaration.markdown|markdown }}
+        <hr />
+        <p class="text-muted">
+          Something wrong with this declaration? Contact team&#64;sunshineuk.org to let them know.
+        </p>
+      </div>
+    </div>
+  {% endfor %}
+
   {% if declarations %}
     <div class="row box">
       <div class="col-lg-12">

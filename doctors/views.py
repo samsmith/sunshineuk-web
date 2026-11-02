@@ -201,9 +201,11 @@ class DoctorListView(ListView):
     # This is dynamic to avoid the date being process-start bounded.
     def get_queryset(self):
         an_hour_ago = timezone.now() - dt.timedelta(hours=1)
+        # A doctor's first declaration takes an hour to show up here.
         qs = models.Doctor.objects.filter(
             Q(detaileddeclaration__dt_created__lte=an_hour_ago) |
-            Q(detaileddeclaration=None)
+            Q(declarationv3__timestamp__lte=an_hour_ago) |
+            Q(detaileddeclaration=None, declarationv3=None)
         )
 
         # Always the same order in the HTML (the browser shuffles it for

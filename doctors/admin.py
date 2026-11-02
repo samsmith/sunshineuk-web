@@ -40,6 +40,11 @@ class DetailedDeclarationAdmin(VersionAdmin):
     inlines = (WorkDetailsInline,)
     search_fields = ['doctor__name']
 
+class DeclarationV3Admin(VersionAdmin):
+    list_display = ['doctor', 'timestamp']
+    search_fields = ['doctor__name', 'markdown']
+
+admin.site.register(models.DeclarationV3, DeclarationV3Admin)
 admin.site.register(models.DetailedDeclaration, DetailedDeclarationAdmin)
 admin.site.register(models.Doctor, DoctorAdmin)
 admin.site.register(models.Declaration, DeclarationAdmin)

@@ -391,3 +391,25 @@ class DetailedDeclaration(models.Model):
 
     def get_absolute_url(self):
         return reverse('doctor-detail', kwargs={'pk': self.doctor.pk})
+
+
+class DeclarationV3(models.Model):
+    """
+    A declaration made with the current form: everything the doctor
+    declared, written up as markdown when they submitted it.
+    """
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(default=timezone.now)
+    markdown = models.TextField()
+
+    class Meta:
+        db_table = "declaration_v3"
+        ordering = ["-timestamp"]
+        verbose_name = "declaration (v3)"
+        verbose_name_plural = "declarations (v3)"
+
+    def __str__(self):
+        return f'{self.doctor} - {self.timestamp:%Y-%m-%d %H:%M}'
+
+    def get_absolute_url(self):
+        return reverse('doctor-detail', kwargs={'pk': self.doctor.pk})
