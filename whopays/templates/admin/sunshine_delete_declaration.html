@@ -1,0 +1,7 @@
+{# One declaration's delete button on the dashboard; admin_dashboard.js asks to confirm. #}
+<form method="post" action="{% url 'admin:dashboard_delete_declaration' declaration.pk %}" class="delete-declaration"
+      data-confirm="Delete {{ declaration.doctor.name }}’s declaration of {{ declaration.timestamp|date:'j F Y' }}? This can’t be undone.">
+  {% csrf_token %}
+  <input type="hidden" name="q" value="{{ q }}">
+  <button type="submit" class="delete-button">Delete entry</button>
+</form>

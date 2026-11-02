@@ -1,0 +1,180 @@
+/* Admin dashboard (templates/admin/sunshine_index.html), on top of the
+   admin's own styles. */
+
+/* The admin home page is 600px wide; the dashboard needs the room. */
+.dashboard #content {
+  width: auto;
+  max-width: 1200px;
+}
+
+.sunshine-dashboard .module {
+  margin-bottom: 30px;
+}
+
+.sunshine-dashboard .module table {
+  width: 100%;
+}
+
+/* Undo the home page's app-list table rules for these tables. */
+.dashboard .sunshine-dashboard .module table th {
+  width: auto;
+}
+
+.dashboard .sunshine-dashboard .module table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.dashboard .sunshine-dashboard .module table td a {
+  display: inline;
+  padding-right: 0;
+}
+
+.sunshine-dashboard .dashboard-form {
+  padding: 12px;
+  border-bottom: 1px solid var(--hairline-color);
+}
+
+.sunshine-dashboard .dashboard-form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.sunshine-dashboard .dashboard-form input[type=text],
+.sunshine-dashboard .dashboard-form input[type=search] {
+  width: 26em;
+  max-width: 100%;
+}
+
+.sunshine-dashboard .dashboard-form .help {
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.sunshine-dashboard caption {
+  font-weight: 600;
+}
+
+.sunshine-dashboard .link-cell {
+  white-space: nowrap;
+}
+
+.sunshine-dashboard input.link-url {
+  width: 24em;
+  font-family: var(--font-family-monospace);
+  font-size: 0.75rem;
+}
+
+.sunshine-dashboard tr.just-made td {
+  background: var(--selected-row);
+}
+
+.sunshine-dashboard .expired {
+  color: var(--error-fg);
+}
+
+.sunshine-dashboard details summary {
+  cursor: pointer;
+}
+
+.sunshine-dashboard .module-footer,
+.sunshine-dashboard .found-count {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.sunshine-dashboard .clear-search {
+  margin-left: 8px;
+}
+
+.sunshine-dashboard .found-doctor {
+  padding: 12px;
+  border-top: 1px solid var(--hairline-color);
+}
+
+/* Not the admin's blue module headings. */
+.sunshine-dashboard .module .found-doctor h3 {
+  background: none;
+  color: var(--body-fg);
+  font-size: 1rem;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.sunshine-dashboard .found-doctor dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0 0 8px;
+}
+
+.sunshine-dashboard .found-doctor dt {
+  font-weight: 600;
+}
+
+.sunshine-dashboard .found-doctor dd {
+  margin: 0;
+}
+
+.sunshine-dashboard .delete-doctor {
+  color: var(--error-fg);
+  font-weight: 600;
+}
+
+.sunshine-dashboard .found-declaration {
+  border: 1px solid var(--hairline-color);
+  border-radius: 4px;
+  padding: 4px 12px 8px;
+  margin: 10px 0;
+}
+
+.sunshine-dashboard .found-declaration .delete-declaration {
+  float: right;
+  margin-top: 8px;
+}
+
+.sunshine-dashboard .delete-button {
+  background: var(--delete-button-bg);
+  color: var(--button-fg);
+  border: 0;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sunshine-dashboard .delete-button:hover,
+.sunshine-dashboard .delete-button:focus {
+  background: var(--delete-button-hover-bg);
+}
+
+/* Declarations shown as they are on the register, not as admin headings. */
+.sunshine-dashboard .module .declaration-markdown h2,
+.sunshine-dashboard .module .declaration-markdown h3 {
+  background: none;
+  color: var(--body-fg);
+  padding: 0;
+  margin: 12px 0 4px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.sunshine-dashboard .module .declaration-markdown h2 {
+  font-size: 0.95rem;
+}
+
+.sunshine-dashboard .module .declaration-markdown h3 {
+  font-size: 0.85rem;
+}
+
+.sunshine-dashboard .declaration-markdown ul {
+  margin: 0 0 6px 1.5em;
+  padding: 0;
+}
+
+.sunshine-dashboard .declaration-markdown p {
+  padding: 0;
+  margin: 4px 0;
+}

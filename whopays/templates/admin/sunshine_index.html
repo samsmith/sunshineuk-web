@@ -1,0 +1,137 @@
+{% extends "admin/index.html" %}
+{% load static markdown_deux_tags %}
+{# The admin home page: the dashboard (doctors/dashboard.py), then the usual list of models. #}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin_dashboard.css' %}">{% endblock %}
+{% block extrahead %}{{ block.super }}<script src="{% static 'admin_dashboard.js' %}" defer></script>{% endblock %}
+
+{% block content %}
+<div id="content-main" class="sunshine-dashboard">
+
+  {% if can_see_links %}
+  <div class="module" id="links">
+    <h2>Declaration links</h2>
+    {% if can_make_links %}
+      <form method="post" action="{% url 'admin:dashboard_new_link' %}" class="dashboard-form">
+        {% csrf_token %}
+        <label for="new-link-email">Make a link for</label>
+        <input type="text" id="new-link-email" name="email" required
+               placeholder="Fred Bloggs <f.bloggs@example.com>" autocomplete="off">
+        <input type="submit" value="Make link">
+        <p class="help">
+          Any address, NHS or not. The link works for {{ link_months }} months.
+          Nothing is emailed: copy the link below and send it yourself.
+        </p>
+      </form>
+    {% endif %}
+    <table>
+      <caption>Not used yet, made in the last {{ recent_link_months }} months</caption>
+      <thead>
+        <tr><th scope="col">Email</th><th scope="col">Made</th><th scope="col">Works until</th><th scope="col">Link</th></tr>
+      </thead>
+      <tbody>
+        {% for link in recent_links %}
+          <tr{% if link.pk|stringformat:"s" == just_made %} class="just-made"{% endif %}>
+            <td>{{ link.email }}</td>
+            <td>{{ link.issued|date:"j M Y" }}</td>
+            <td>{% if link.expired %}<span class="expired">Expired {{ link.expires|date:"j M Y" }}</span>{% else %}{{ link.expires|date:"j M Y" }}{% endif %}</td>
+            <td class="link-cell">
+              {% if link.expired %}
+                <span class="help">Make it again above to renew it.</span>
+              {% else %}
+                <input type="text" readonly class="link-url" id="link-{{ link.pk }}"
+                       value="{{ link.absolute_url }}" aria-label="Declaration link for {{ link.email }}">
+                <button type="button" class="button copy-link" data-for="link-{{ link.pk }}">Copy</button>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No unused links from the last {{ recent_link_months }} months.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if can_see_declarations %}
+  <div class="module" id="latest-declarations">
+    <h2>Latest declarations</h2>
+    <table>
+      <thead>
+        <tr><th scope="col">Doctor</th><th scope="col">Made</th><th scope="col">Declaration</th>{% if can_delete_declarations %}<th scope="col"></th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for declaration in latest_declarations %}
+          <tr>
+            <td><a href="{{ declaration.doctor.get_absolute_url }}">{{ declaration.doctor.name }}</a></td>
+            <td>{{ declaration.timestamp|date:"j M Y" }}</td>
+            <td>
+              <details>
+                <summary>{{ declaration.summary }}</summary>
+                <div class="declaration-markdown">{{ declaration.markdown|markdown }}</div>
+              </details>
+            </td>
+            {% if can_delete_declarations %}
+              <td>{% include "admin/sunshine_delete_declaration.html" %}</td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No declarations yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="module-footer"><a href="{% url 'admin:doctors_declarationv3_changelist' %}">Show all declarations</a></p>
+  </div>
+  {% endif %}
+
+  {% if can_see_doctors %}
+  <div class="module" id="find">
+    <h2>Find a doctor</h2>
+    <form method="get" action="{% url 'admin:index' %}#find" class="dashboard-form">
+      <label for="find-q">Name, email, GMC number or anything in a declaration</label>
+      <input type="search" id="find-q" name="q" value="{{ q }}">
+      <input type="submit" value="Find">
+      {% if q %}<a href="{% url 'admin:index' %}" class="clear-search">Clear</a>{% endif %}
+    </form>
+
+    {% if q %}
+      <p class="found-count">
+        {% if found_count %}
+          {{ found_count }} doctor{{ found_count|pluralize }} found{% if found_count > found|length %}; showing the first {{ found|length }}{% endif %}.
+        {% else %}
+          No doctors found for “{{ q }}”.
+        {% endif %}
+      </p>
+      {% for doctor in found %}
+        <div class="found-doctor">
+          <h3>{{ doctor.name }}</h3>
+          <dl>
+            <dt>GMC number</dt><dd>{{ doctor.gmc_number }}</dd>
+            <dt>Email</dt><dd>{{ doctor.email|default:"—" }}</dd>
+            <dt>Job title</dt><dd>{{ doctor.job_title }}</dd>
+            <dt>Primary employer</dt><dd>{{ doctor.primary_employer }}</dd>
+          </dl>
+          <p class="doctor-actions">
+            <a href="{{ doctor.get_absolute_url }}">Public page</a>
+            · <a href="{% url 'admin:doctors_doctor_change' doctor.pk %}">Edit</a>
+            {% if can_delete_doctors %}
+              · <a href="{% url 'admin:doctors_doctor_delete' doctor.pk %}?from=dashboard" class="delete-doctor">Delete doctor and their declarations</a>
+            {% endif %}
+          </p>
+          {% for declaration in doctor.declarationv3_set.all %}
+            <div class="found-declaration">
+              {% if can_delete_declarations %}{% include "admin/sunshine_delete_declaration.html" %}{% endif %}
+              <div class="declaration-markdown">{{ declaration.markdown|markdown }}</div>
+            </div>
+          {% empty %}
+            <p class="help">No declarations.</p>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}
