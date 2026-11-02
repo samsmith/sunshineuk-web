@@ -9,7 +9,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.urls import reverse_lazy, reverse
-from django.http import Http404, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.views.generic import ListView, DetailView
@@ -63,44 +63,16 @@ class AbstractDeclareView():
     # The four fields on section 1 of the form.
     fields = ['name', 'gmc_number', 'job_title', 'primary_employer']
 
-    def get_context_data(self, **kwargs):
-        data = super().get_context_data(**kwargs)
-
-        if self.request.POST:
-            data['detaileddeclarationinline'] = forms.DeclarationIdentityFormSet(
-                self.request.POST
-            )
-        else:
-            data['detaileddeclarationinline'] = forms.DeclarationIdentityFormSet()
-
-        if self.request.POST:
-            data['workdetailsinline'] = forms.WorkDetailsFormSet(
-                self.request.POST
-            )
-        else:
-            data['workdetailsinline'] = forms.WorkDetailsFormSet()
-
-        return data
-
-    def is_valid(self):
-        form = self.get_form()
-        if not form.is_valid():
-            return False
-        context = self.get_context_data()
-        detailed_declaration = context['detaileddeclarationinline']
-        work_details = context['workdetailsinline']
-        if not detailed_declaration.is_valid():
-            return False
-        if not work_details.is_valid():
-            return False
-        return True
-
     @transaction.atomic
     def form_valid(self, form):
-        context = self.get_context_data()
-        detailed_declarations = context['detaileddeclarationinline']
-        work_details = context['workdetailsinline']
-        if not self.is_valid():
+        # Section 2: everything declared, written up as markdown by
+        # declare.js. Browsers send form text with CRLF line endings.
+        markdown = self.request.POST.get('declaration', '')
+        markdown = markdown.replace('\r\n', '\n').strip()
+        if not markdown:
+            form.add_error(
+                None, "Your declarations didn't come through. Please add them again."
+            )
             return self.form_invalid(form)
 
         # The verified email is the one the link was sent to; never trust
@@ -110,15 +82,7 @@ class AbstractDeclareView():
         # can't be null, so it's stored as an empty string.
         form.instance.employment_address = ""
         self.object = form.save()
-        detailed_declaration_form = detailed_declarations[0]
-        detailed_declaration = detailed_declaration_form.save(commit=False)
-        detailed_declaration.doctor = self.object
-        detailed_declaration.save()
-        for work_detail_form in work_details:
-            work_detail = work_detail_form.save(commit=False)
-            if work_detail_form.is_populated():
-                work_detail.declaration = detailed_declaration
-                work_detail.save()
+        models.DeclarationV3.objects.create(doctor=self.object, markdown=markdown)
 
         self.link.delete()
         if not settings.SKIP_EMAIL_VERIFICATION:
@@ -185,13 +149,6 @@ class DoctorDetailArchivedView(DetailView):
     model = models.Doctor
     context_object_name = 'doctor'
     template_name = "doctors/doctor_detail_archived.html"
-
-
-class DoctorJSONView(DetailView):
-    queryset = models.Doctor.objects.all()
-
-    def get(self, *args, **kw):
-        return JsonResponse(self.get_object().to_dict())
 
 
 class DoctorListView(ListView):

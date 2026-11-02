@@ -26,16 +26,6 @@ class Doctor(models.Model):
     def get_absolute_url(self):
         return reverse('doctor-detail', kwargs={'pk': self.pk})
 
-    def to_dict(self):
-        return dict(
-            name=self.name,
-            gmc_number=self.gmc_number,
-            job_title=self.job_title,
-            primary_employer=self.primary_employer,
-            employment_address=self.employment_address,
-            declarations=[d.to_dict() for d in self.declaration_set.all()]
-            )
-
     def send_declaration_thanks(self):
         """
         Send this doctor an Email thanking them for their declaration,
@@ -74,19 +64,6 @@ class Declaration(models.Model):
     def __str__(self):
         return f'{self.doctor} - {self.date_created}'
 
-    def to_dict(self):
-        return dict(
-            date=self.date_created.strftime('%Y-%m-%dT%H:%M:%S'),
-            past_declarations=self.past_declarations,
-            other_declarations=self.other_declarations,
-            benefits=dict(
-                pharma=[b.to_dict() for b in self.pharmabenefit_set.all()],
-                othermedical=[b.to_dict() for b in self.othermedicalbenefit_set.all()],
-                fee=[b.to_dict() for b in self.feebenefit_set.all()],
-                grant=[b.to_dict() for b in self.grantbenefit_set.all()]
-                )
-            )
-
     @property
     def nothing_to_declare(self):
         the_things = (self.pharmabenefit_set.count() == 0,
@@ -121,13 +98,6 @@ class Benefit(models.Model):
     company = models.CharField(max_length=200)
     reason = models.CharField(max_length=200)
     band = models.IntegerField(choices=BAND_CHOICES)
-
-    def to_dict(self):
-        return dict(
-            company=self.company,
-            reason=self.reason,
-            band=self.get_band_display()
-            )
 
 class PharmaBenefit(Benefit): pass
 class OtherMedicalBenefit(Benefit): pass

@@ -53,11 +53,6 @@ urlpatterns = [
         name='doctor-detail'
     ),
     path(
-        'doctor/<pk>.json',
-        doctors.views.DoctorJSONView.as_view(),
-        name='doctor-json'
-    ),
-    path(
         'doctors/',
         doctors.views.DoctorListView.as_view(),
         name='doctor-list'
