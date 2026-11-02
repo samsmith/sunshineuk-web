@@ -14,7 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 from reversion.models import Version
 
-from doctors import models
+from doctors import convert, models
 
 # The manifest static storage used in production needs `collectstatic` to have
 # run before templates can use {% static %}; use plain storage in tests.
@@ -251,10 +251,10 @@ class DoctorListTest(TestCase):
 
     def test_new_declarations_wait_an_hour(self):
         doctor = make_doctor()
-        declaration = models.DetailedDeclaration.objects.create(doctor=doctor, for_year=2024)
+        declaration = models.DeclarationV3.objects.create(doctor=doctor, markdown="## Declaration")
         self.assertEqual(self.listed(), [])
-        models.DetailedDeclaration.objects.filter(pk=declaration.pk).update(
-            dt_created=timezone.now() - timedelta(hours=2)
+        models.DeclarationV3.objects.filter(pk=declaration.pk).update(
+            timestamp=timezone.now() - timedelta(hours=2)
         )
         self.assertEqual(self.listed(), [doctor])
 
@@ -325,17 +325,20 @@ class DoctorPageTest(TestCase):
         url = reverse("doctor-detail", kwargs={"pk": 999999})
         self.assertEqual(self.client.get(url).status_code, 404)
 
-    def test_json_for_unknown_doctor_is_404(self):
-        response = self.client.get(reverse("doctor-json", kwargs={"pk": 999999}))
+    def test_json_endpoint_is_gone(self):
+        response = self.client.get(f"/doctor/{self.doctor.pk}.json")
         self.assertEqual(response.status_code, 404)
 
-    def test_older_declarations_grouped_by_year_newest_first(self):
-        for year in (2022, 2024, 2024):
-            models.DetailedDeclaration.objects.create(doctor=self.doctor, for_year=year)
-        response = self.client.get(self.doctor.get_absolute_url())
-        declarations = response.context["declarations"]
-        self.assertEqual(list(declarations), [2024, 2022])
-        self.assertEqual(len(declarations[2024]), 2)
+    def test_declarations_newest_first(self):
+        now = timezone.now()
+        for days, text in ((400, "Oldest"), (0, "Newest"), (30, "Middle")):
+            models.DeclarationV3.objects.create(
+                doctor=self.doctor, timestamp=now - timedelta(days=days),
+                markdown=f"## Declaration\n\n{text} declaration.",
+            )
+        html = self.client.get(self.doctor.get_absolute_url()).content.decode()
+        positions = [html.index(f"{text} declaration.") for text in ("Newest", "Middle", "Oldest")]
+        self.assertEqual(positions, sorted(positions))
 
     def test_what_doctors_type_is_shown_as_text_not_html(self):
         attack = "<script>alert(1)</script><img src=x onerror=alert(2)>"
@@ -346,6 +349,7 @@ class DoctorPageTest(TestCase):
         models.WorkDetails.objects.create(
             declaration=declaration, category="NHS", institution=attack
         )
+        convert.convert_old_declarations()  # old declarations show once converted
         make_doctor(name=attack)  # no declarations, so on the register straight away
         for url in (doctor.get_absolute_url(), reverse("doctor-list")):
             with self.subTest(url=url):
@@ -358,11 +362,12 @@ class DoctorPageTest(TestCase):
 @PLAIN_STATIC
 class SearchTest(TestCase):
     def setUp(self):
-        self.leeds = models.DetailedDeclaration.objects.create(
+        # Made with the old form, then converted: search looks at the markdown.
+        leeds = models.DetailedDeclaration.objects.create(
             doctor=make_doctor(name="Amara Adams", primary_employer="Leeds Trust"),
             for_year=2024, consultancy_details="Advisory board for Acme Pharma",
         )
-        self.oxford = models.DetailedDeclaration.objects.create(
+        oxford = models.DetailedDeclaration.objects.create(
             doctor=make_doctor(
                 name="Ben Begum", primary_employer="Oxford University", gmc_number="1234500"
             ),
@@ -370,8 +375,13 @@ class SearchTest(TestCase):
         )
         for place in ("Wellcome Centre", "Wellcome Clinic"):
             models.WorkDetails.objects.create(
-                declaration=self.oxford, category="Academic", institution=place
+                declaration=oxford, category="Academic", institution=place
             )
+        convert.convert_old_declarations()
+        converted = lambda old: models.DeclarationV3.objects.get(
+            migrated_from=f"detaileddeclaration:{old.pk}"
+        )
+        self.leeds, self.oxford = converted(leeds), converted(oxford)
 
     def search(self, query):
         response = self.client.get(reverse("search"), {"q": query})
@@ -459,8 +469,52 @@ class AdminTest(TestCase):
         self.assertEqual(self.doctor.name, "Renamed")
         self.assertEqual(Version.objects.get_for_object(self.doctor).count(), 1)
 
+    def test_convert_old_declarations_button(self):
+        changelist = reverse("admin:doctors_declarationv3_changelist")
+        convert_url = reverse("admin:doctors_declarationv3_convert_old")
+        page = self.client.get(changelist)
+        self.assertContains(page, "2 declarations")
+        self.assertContains(page, 'value="Convert old declarations"')
+        self.assertEqual(self.client.get(convert_url).status_code, 405)  # POST only
+
+        response = self.client.post(convert_url, follow=True)
+        self.assertRedirects(response, changelist)
+        self.assertContains(response, "Converted 2 old declarations to markdown.")
+        self.assertNotContains(response, 'value="Convert old declarations"')
+        self.assertEqual(
+            set(models.DeclarationV3.objects.values_list("migrated_from", flat=True)),
+            {"", f"detaileddeclaration:{self.detailed.pk}", f"declaration:{self.legacy.pk}"},
+        )
+        # Pressing it again converts nothing new.
+        self.client.post(convert_url)
+        self.assertEqual(models.DeclarationV3.objects.count(), 3)
+
+    def test_convert_button_needs_permission_to_add(self):
+        staff = User.objects.create_user("staff", password="password", is_staff=True)
+        self.client.force_login(staff)
+        response = self.client.post(reverse("admin:doctors_declarationv3_convert_old"))
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(models.DeclarationV3.objects.count(), 1)
+
     def test_admin_needs_a_login(self):
         self.client.logout()
         response = self.client.get(reverse("admin:doctors_doctor_changelist"))
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response["Location"].startswith(reverse("admin:login")))
+
+
+class CatchAllCategoryTest(TestCase):
+    """
+    The declaration form keeps the original form's catch-all, "Other
+    declarations": the last category in declare.js, free text only.
+    """
+
+    def test_other_declarations_is_offered_last_as_free_text(self):
+        with open(finders.find("declare.js"), encoding="utf-8") as script:
+            js = script.read()
+        categories = js[js.index("const CATEGORIES = {"):js.index("const state = {")]
+        catch_all = categories[categories.index("other_declarations: {"):]
+        self.assertIn('label: "Other declarations"', catch_all)
+        self.assertIn('kind: "free_text"', catch_all)
+        # Its closing brace is the last one before the list ends.
+        self.assertRegex(catch_all, r"^other_declarations: \{[^{}]*\}\s*\};")

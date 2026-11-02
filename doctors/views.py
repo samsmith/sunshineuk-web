@@ -125,30 +125,10 @@ class AddDeclarationView(AbstractDeclareView, UpdateView):
 
 
 class DoctorDetailView(DetailView):
+    # The page shows the doctor's declarations (v3) as markdown. Old ones
+    # are converted to v3 from the admin (doctors/convert.py).
     model = models.Doctor
     context_object_name = 'doctor'
-
-    def get_context_data(self, *args, **kwargs):
-        ctx = super().get_context_data(*args, **kwargs)
-        declarations = self.object.detaileddeclaration_set.order_by(
-            "-for_year"
-        )
-        # python 3.7 dicts maintain order!
-        ctx["declarations"] = {}
-        for declaration in declarations:
-            if declaration.for_year not in ctx["declarations"]:
-                ctx["declarations"][declaration.for_year] = []
-
-            ctx["declarations"][declaration.for_year].append(
-                declaration
-            )
-        return ctx
-
-
-class DoctorDetailArchivedView(DetailView):
-    model = models.Doctor
-    context_object_name = 'doctor'
-    template_name = "doctors/doctor_detail_archived.html"
 
 
 class DoctorListView(ListView):
@@ -160,9 +140,8 @@ class DoctorListView(ListView):
         an_hour_ago = timezone.now() - dt.timedelta(hours=1)
         # A doctor's first declaration takes an hour to show up here.
         qs = models.Doctor.objects.filter(
-            Q(detaileddeclaration__dt_created__lte=an_hour_ago) |
             Q(declarationv3__timestamp__lte=an_hour_ago) |
-            Q(detaileddeclaration=None, declarationv3=None)
+            Q(declarationv3=None)
         )
 
         # Always the same order in the HTML (the browser shuffles it for
@@ -173,25 +152,18 @@ class DoctorListView(ListView):
 
 
 class SearchView(ListView):
-    model = models.DetailedDeclaration
+    model = models.DeclarationV3
 
     SEARCH_FIELDS = [
-        "consultancy_details",
-        "academic_details",
-        "other_work_details",
-        "financial_details",
-        "spousal_details",
-        "sponsored_details",
-        "political_details",
+        "markdown",
         "doctor__name",
         "doctor__primary_employer",
         "doctor__gmc_number",
-        "workdetails__institution"
     ]
 
     def get_queryset(self):
         query_term = self.request.GET.get('q', '')
-        queryset = self.model.objects.all()
+        queryset = self.model.objects.select_related('doctor')
         q_objects = [
             Q(**{"{}__icontains".format(field): query_term})
             for field in self.SEARCH_FIELDS

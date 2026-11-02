@@ -25,7 +25,8 @@
   ];
 
   // Categories and sub-options from the DetailedDeclaration model;
-  // "Main employment" is new.
+  // "Main employment" is new, and "Other declarations" is back from the
+  // original form.
   const CATEGORIES = {
     // Listed first. One post per record, so the type is a single
     // choice, and there's no income band.
@@ -91,6 +92,15 @@
       label: "Political / membership organisations",
       note: "Affiliations of note",
       subs: []
+    },
+    // Listed last: the catch-all, as on the original form's "Other
+    // Declarations" section. Free text only, with no income band.
+    other_declarations: {
+      label: "Other declarations",
+      note: "Anything not covered above",
+      kind: "free_text",
+      hint: "This is simply to provide space for any other declaration you may wish to make.",
+      subs: []
     }
   };
 
@@ -108,18 +118,14 @@
   const hide = (el) => el.classList.add("hidden");
   const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
   const isEmployment = (rec) => CATEGORIES[rec.category].kind === "employment";
+  const isFreeText = (cat) => cat.kind === "free_text";
+  const DEFAULT_HINT = byId("cat-details-hint").textContent;
+  const CATEGORY_ORDER = Object.keys(CATEGORIES);
 
   function esc(s){
     return String(s).replace(/[&<>"']/g, c => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     }[c]));
-  }
-
-  /* Rolling 12 months: from the start of this month a year ago, to today. */
-  function declarationPeriod(){
-    const end = new Date();
-    const start = new Date(end.getFullYear() - 1, end.getMonth(), 1);
-    return { start, end };
   }
 
   /* ---------- category buttons and band options ---------- */
@@ -157,11 +163,8 @@
     hide(byId("identity-error"));
     state.identity = identity;
 
-    const p = declarationPeriod();
-    const month = (d) => d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
     byId("identity-summary").innerHTML =
-      `Declaring as <strong>${esc(identity.name)}</strong>, ${esc(identity.job_title)} at ${esc(identity.primary_employer)} &middot; identifier <strong>${esc(identity.gmc_number)}</strong><br>
-       Covering the period <strong>${month(p.start)}</strong> to <strong>${month(p.end)}</strong>`;
+      `Declaring as <strong>${esc(identity.name)}</strong>, ${esc(identity.job_title)} at ${esc(identity.primary_employer)} &middot; identifier <strong>${esc(identity.gmc_number)}</strong>`;
 
     hide(byId("screen-identity"));
     show(byId("screen-main"));
@@ -198,9 +201,12 @@
     }
 
     // Main employment has no income band, and its Details box carries
-    // suggested text instead of the usual hint.
+    // suggested text instead of the usual hint. The catch-all has no band
+    // either, and a hint of its own.
     if (isEmp) { hide(byId("band-field")); hide(byId("cat-details-hint")); }
     else       { show(byId("band-field")); show(byId("cat-details-hint")); }
+    if (isFreeText(cat)) hide(byId("band-field"));
+    byId("cat-details-hint").textContent = cat.hint || DEFAULT_HINT;
     byId("cat-details").placeholder = cat.placeholder || "";
 
     byId("cat-band").value = "";
@@ -244,9 +250,12 @@
       document.querySelectorAll("#cat-subs input[type=checkbox]").forEach(cb => {
         subs[cb.dataset.sub] = cb.checked;
       });
-      const band = byId("cat-band").value;
-      if (!band && !details) {
-        err.textContent = "Add an income band or some details before saving this declaration.";
+      // The catch-all is free text, so it needs some.
+      const band = isFreeText(cat) ? "" : byId("cat-band").value;
+      if (!details && (isFreeText(cat) || !band)) {
+        err.textContent = isFreeText(cat)
+          ? "Add some details before saving this declaration."
+          : "Add an income band or some details before saving this declaration.";
         show(err);
         return;
       }
@@ -317,10 +326,12 @@
     }
     show(byId("submit-panel"));
 
-    // Main employment first, then interests, each in the order added.
+    // Grouped by category, in the order of the category buttons (so main
+    // employment first), each category in the order added: the same order
+    // as the submitted markdown.
     state.records
       .map((rec, i) => ({ rec, i }))
-      .sort((a, b) => isEmployment(b.rec) - isEmployment(a.rec))
+      .sort((a, b) => CATEGORY_ORDER.indexOf(a.rec.category) - CATEGORY_ORDER.indexOf(b.rec.category))
       .forEach(({ rec, i }) => ledger.appendChild(recordDiv(rec, i)));
 
     if (nothingToDeclare) {
@@ -399,11 +410,17 @@
 
        ## Declaration on 1 November 2026
 
+       ### Main employment
+
+       - **Type:** NHS · **Details:** Consultant, Leeds Teaching Hospitals
+       - **Type:** Private work · **Details:** Private clinic, Harrogate
+
        ### Consultancy
 
-       - **Relates to:** Pharmaceutical companies
-       - **Income band:** £5,000 – £10,000
-       - **Details:** Advisory board member
+       - **Relates to:** Pharmaceutical companies · **Income band:** £5,000 – £10,000 · **Details:** Advisory board member
+
+     One heading per category, however many declarations it has, and one
+     line per declaration under it.
 
      With no interests, it ends with a plain line instead:
      "Nothing to declare." ("Nothing else to declare." after
@@ -430,15 +447,23 @@
 
     const records = ledgerRecords();
     const blocks = ["## " + heading];
-    records.forEach(rec => {
-      if (rec.nothing_to_declare) {
-        blocks.push(nothingLine(records));
-        return;
-      }
-      const s = describe(rec);
-      blocks.push("### " + mdEscape(s.title));
-      blocks.push(s.fields.map(([label, value]) => `- **${label}:** ${mdEscape(value)}`).join("\n"));
+
+    // The declarations, grouped by category (in the ledger's order).
+    const byCategory = new Map();
+    records.filter(rec => !rec.nothing_to_declare).forEach(rec => {
+      if (!byCategory.has(rec.category)) byCategory.set(rec.category, []);
+      byCategory.get(rec.category).push(rec);
     });
+    byCategory.forEach(recs => {
+      blocks.push("### " + mdEscape(describe(recs[0]).title));
+      blocks.push(recs.map(rec => {
+        const fields = describe(rec).fields
+          .map(([label, value]) => `**${label}:** ${mdEscape(value)}`);
+        return "- " + (fields.join(" · ") || "Declared.");
+      }).join("\n"));
+    });
+
+    if (records.some(rec => rec.nothing_to_declare)) blocks.push(nothingLine(records));
     return blocks.join("\n\n");
   }
 
@@ -496,7 +521,7 @@
       };
     }
 
-    const band = BANDS.includes(item.band) ? item.band : "";
+    const band = !isFreeText(cat) && BANDS.includes(item.band) ? item.band : "";
     if (!band && !item.details.trim()) return null;
     const subs = {};
     cat.subs.forEach(s => { subs[s.id] = !!(item.subs && item.subs[s.id] === true); });

@@ -24,7 +24,7 @@
     </div>
   </div>
 
-  {# Declarations made with the current form, newest first. #}
+  {# Every declaration is stored as markdown (v3), newest first. #}
   {% for declaration in doctor.declarationv3_set.all %}
     <div class="row box">
       <div class="col-md-12">
@@ -36,122 +36,5 @@
       </div>
     </div>
   {% endfor %}
-
-  {% if declarations %}
-    <div class="row box">
-      <div class="col-lg-12">
-        <h3 class="">Declaration History</h3>
-      </div>
-    </div>
-  {% endif %}
-
-
-  {% for year, annual_decalarations in declarations.items %}
-    <div class="row box">
-      <h2 class="col-md-12">{{ year }} </h2>
-      {% for declaration in annual_decalarations %}
-        <h3 class="intro-text col-md-12">Declaration {{ declaration.dt_created }}</h3>
-
-        <div class="col-md-12">
-          {% if declaration.workdetails_set.count %}
-            <h3>Clinical Positions</h3>
-            <ul>
-              {% for position in declaration.workdetails_set.all %}
-                <li>{{ position.category }}
-                  {% if position.institution or position.job_title %}:
-                  {% if position.institution %}{{ position.institution }}{% endif %}
-                  {% if position.job_title %}{{ position.job_title }}{% endif %}
-                  {% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% endif %}
-
-          <h3>
-            Consultancy {% if declaration.consultancy_band %}{{ declaration.consultancy_band }}{% endif %}
-          </h3>
-          {% if declaration.consultancy_details %}
-            <p>
-              {{ declaration.consultancy_details }}
-            </p>
-          {% endif %}
-
-          <h3>
-            Academic {% if declaration.academic_band %}{{ declaration.academic_band }}{% endif %}
-          </h3>
-          {% if declaration.academic_details %}
-            <p>
-              {{ declaration.academic_details }}
-            </p>
-          {% endif %}
-
-          <h3>
-            Other work {% if declaration.other_work_band %}{{ declaration.other_work_band }}{% endif %}
-          </h3>
-          {% if declaration.other_work_details %}
-            <p>
-              {{ declaration.other_work_details }}
-            </p>
-          {% endif %}
-
-          <h3>
-            Financial {% if declaration.financial_band %}{{ declaration.financial_band }}{% endif %}
-          </h3>
-          {% if declaration.financial_details %}
-            <p>{{ declaration.financial_details }}</p>
-          {% endif %}
-
-          <h3>
-            Spousal {% if declaration.spousal_band %}{{ declaration.spousal_band }}{% endif %}
-          </h3>
-          {% if declaration.spousal_details %}
-            <p>{{ declaration.spousal_details }}</p>
-          {% endif %}
-
-          <h3>
-            Sponsored
-            {% if declaration.sponsored_band %}
-              <p>{{ declaration.sponsored_band }}</p>
-            {% endif %}
-          </h3>
-          {% if declaration.sponsored_details %}
-            <p>{{ declaration.sponsored_details }}</p>
-          {% endif %}
-
-
-          <h3>
-            Political
-            {% if declaration.political_band %}
-              {{ declaration.political_band }}
-            {% endif %}
-          </h3>
-          {% if declaration.political_details %}
-            <p>{{ declaration.political_details }}</p>
-          {% endif %}
-
-        </div>
-
-        <div class="col-md-12">
-          <hr />
-          <p class="text-muted">
-            Something wrong with this declaration? Contact team&#64;sunshineuk.org to let them know.
-          </p>
-        </div>
-  {% endfor %}
-  </div>
-{% endfor %}
-
-
-{% if doctor.declaration_set.count %}
-  <div class="row box">
-    <div class="col-lg-12">
-      <h3 class="">Archived Declarations</h3>
-    </div>
-  </div>
-
-  {% include 'doctors/doctor_detail_archived.html' %}
-
-
-{% endif %}
 
 {% endblock %}

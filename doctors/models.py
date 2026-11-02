@@ -49,9 +49,6 @@ class Doctor(models.Model):
             )
         return
 
-    def get_archived_declarations(self):
-        return self.declaration_set.all().order_by('-date_created')
-
 
 class Declaration(models.Model):
     doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE)
@@ -63,16 +60,6 @@ class Declaration(models.Model):
 
     def __str__(self):
         return f'{self.doctor} - {self.date_created}'
-
-    @property
-    def nothing_to_declare(self):
-        the_things = (self.pharmabenefit_set.count() == 0,
-                      self.othermedicalbenefit_set.count() == 0,
-                      self.feebenefit_set.count() == 0,
-                      self.grantbenefit_set.count() == 0,
-                      not self.past_declarations,
-                      not self.other_declarations)
-        return all(the_things)
 
 
 class Benefit(models.Model):
@@ -371,12 +358,26 @@ class DeclarationV3(models.Model):
     doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(default=timezone.now)
     markdown = models.TextField()
+    # For declarations converted from the old tables (doctors/convert.py):
+    # which row it came from, e.g. "detaileddeclaration:12". Blank for
+    # declarations made with the current form.
+    migrated_from = models.CharField(
+        max_length=50, blank=True, default="", verbose_name="converted from"
+    )
 
     class Meta:
         db_table = "declaration_v3"
         ordering = ["-timestamp"]
         verbose_name = "declaration (v3)"
         verbose_name_plural = "declarations (v3)"
+        constraints = [
+            # Each old declaration is converted at most once.
+            models.UniqueConstraint(
+                fields=["migrated_from"],
+                condition=~models.Q(migrated_from=""),
+                name="declaration_v3_converted_once",
+            ),
+        ]
 
     def __str__(self):
         return f'{self.doctor} - {self.timestamp:%Y-%m-%d %H:%M}'
