@@ -1,0 +1,19 @@
+{% extends "reversion/change_list.html" %}
+
+{% block pretitle %}
+  {# Converts declarations from the old tables into markdown (doctors/convert.py). #}
+  {% if old_declarations_to_convert and has_add_permission %}
+    <form method="post" action="{% url 'admin:doctors_declarationv3_convert_old' %}"
+          class="convert-old-declarations"
+          style="background:var(--darkened-bg);border:1px solid var(--hairline-color);
+                 border-radius:4px;padding:12px 15px;margin:0 0 20px">
+      {% csrf_token %}
+      <p style="margin:0 0 10px">
+        {{ old_declarations_to_convert }} declaration{{ old_declarations_to_convert|pluralize }}
+        from the old forms {{ old_declarations_to_convert|pluralize:"isn't,aren't" }} on the register yet.
+        Converting copies each one here as markdown, keeping its date. The old records stay as they are.
+      </p>
+      <input type="submit" class="default" value="Convert old declarations">
+    </form>
+  {% endif %}
+{% endblock %}
