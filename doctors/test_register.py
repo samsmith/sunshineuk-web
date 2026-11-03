@@ -104,17 +104,17 @@ class LinkModelTest(TestCase):
         for _ in range(50):
             self.assertRegex(models.random_token(), r"^[A-Za-z0-9_-]+$")
 
-    def test_new_links_last_two_weeks(self):
+    def test_new_links_last_six_weeks(self):
         link = models.DeclarationLink.objects.create(email="a@nhs.net")
         self.assertFalse(link.expired)
         self.assertAlmostEqual(
-            link.expires, timezone.now() + timedelta(days=14),
+            link.expires, timezone.now() + timedelta(weeks=6),
             delta=timedelta(minutes=5),
         )
 
-    def test_a_new_key_is_a_new_link_for_two_weeks(self):
+    def test_a_new_key_is_a_new_link_for_six_weeks(self):
         link = models.DeclarationLink.objects.create(
-            email="a@nhs.net", issued=timezone.now() - timedelta(days=20),
+            email="a@nhs.net", issued=timezone.now() - timedelta(days=48),
             expires=timezone.now() - timedelta(days=6),
         )
         old_key = link.key
@@ -124,7 +124,7 @@ class LinkModelTest(TestCase):
         self.assertFalse(link.expired)
         self.assertAlmostEqual(link.issued, timezone.now(), delta=timedelta(minutes=5))
         self.assertAlmostEqual(
-            link.expires, timezone.now() + timedelta(days=14),
+            link.expires, timezone.now() + timedelta(weeks=6),
             delta=timedelta(minutes=5),
         )
 
@@ -140,7 +140,7 @@ class LinkModelTest(TestCase):
 class DatesTest(TestCase):
     def test_default_dates_are_timezone_aware(self):
         doctor = make_doctor()
-        self.assertTrue(timezone.is_aware(models.in_two_weeks()))
+        self.assertTrue(timezone.is_aware(models.in_six_weeks()))
         self.assertTrue(timezone.is_aware(
             models.Declaration.objects.create(doctor=doctor).dt_created
         ))
@@ -213,17 +213,17 @@ class IdentityViewTest(TestCase):
         self.assertEqual((link.key, link.issued, link.expires), (old_key, old_issued, old_expiry))
         send.assert_called_once()
 
-    def test_asking_again_gives_a_new_link_for_another_two_weeks(self):
-        # Asked for 13 days ago, so the old link had a day left.
+    def test_asking_again_gives_a_new_link_for_another_six_weeks(self):
+        # Asked for 41 days ago, so the old link had a day left.
         link = models.DeclarationLink.objects.create(
-            email="someone@nhs.net", issued=timezone.now() - timedelta(days=13),
+            email="someone@nhs.net", issued=timezone.now() - timedelta(days=41),
             expires=timezone.now() + timedelta(days=1),
         )
         self.assert_asking_again_gives_a_new_link(link)
 
-    def test_asking_again_after_expiry_gives_a_new_link_for_two_weeks(self):
+    def test_asking_again_after_expiry_gives_a_new_link_for_six_weeks(self):
         link = models.DeclarationLink.objects.create(
-            email="someone@nhs.net", issued=timezone.now() - timedelta(days=15),
+            email="someone@nhs.net", issued=timezone.now() - timedelta(days=43),
             expires=timezone.now() - timedelta(days=1),
         )
         self.assert_asking_again_gives_a_new_link(link)
@@ -236,7 +236,7 @@ class IdentityViewTest(TestCase):
         self.assertNotEqual(link.key, old_key)
         self.assertAlmostEqual(link.issued, timezone.now(), delta=timedelta(minutes=5))
         self.assertAlmostEqual(
-            link.expires, timezone.now() + timedelta(days=14),
+            link.expires, timezone.now() + timedelta(weeks=6),
             delta=timedelta(minutes=5),
         )
         # The old key stops working, and the new one opens the form.
@@ -312,9 +312,9 @@ class ReEstablishIdentityTest(TestCase):
         link.refresh_from_db()
         self.assertEqual(link.key, old_key)
 
-    def test_asking_again_gives_a_new_link_for_another_two_weeks(self):
+    def test_asking_again_gives_a_new_link_for_another_six_weeks(self):
         link = models.DeclarationLink.objects.create(
-            email="doc@nhs.net", issued=timezone.now() - timedelta(days=13),
+            email="doc@nhs.net", issued=timezone.now() - timedelta(days=41),
             expires=timezone.now() + timedelta(days=1),
         )
         old_key = link.key
@@ -322,7 +322,7 @@ class ReEstablishIdentityTest(TestCase):
         link.refresh_from_db()
         self.assertNotEqual(link.key, old_key)
         self.assertAlmostEqual(
-            link.expires, timezone.now() + timedelta(days=14),
+            link.expires, timezone.now() + timedelta(weeks=6),
             delta=timedelta(minutes=5),
         )
 

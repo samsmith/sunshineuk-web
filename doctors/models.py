@@ -98,13 +98,20 @@ def random_token():
     """
     return secrets.token_urlsafe(24)
 
-def in_two_weeks():
-    return timezone.now() + dt.timedelta(days=14)
+# How long an emailed link works for.
+LINK_LIFETIME = dt.timedelta(weeks=6)
+
+def in_six_weeks():
+    return timezone.now() + LINK_LIFETIME
+
+# Migration 0001 names the default by its old name, so keep it working: it is
+# the same function.
+in_two_weeks = in_six_weeks
 
 
 class DeclarationLink(models.Model):
     email = models.EmailField(unique=True)
-    expires = models.DateTimeField(default=in_two_weeks)
+    expires = models.DateTimeField(default=in_six_weeks)
     key = models.CharField(max_length=64, unique=True, default=random_token)
     # When the current key was made (a fresh key counts as a new link). For
     # links from before this field, migration 0008 estimates it from expires.
@@ -151,12 +158,12 @@ class DeclarationLink(models.Model):
 
     def new_key(self):
         """
-        Make this a new link, lasting two weeks from now. It gets a new key,
+        Make this a new link, lasting six weeks from now. It gets a new key,
         so the old one stops working.
         """
         self.key = random_token()
         self.issued = timezone.now()
-        self.expires = in_two_weeks()
+        self.expires = in_six_weeks()
         self.save()
 
 
