@@ -98,9 +98,6 @@ def random_token():
     """
     return secrets.token_urlsafe(24)
 
-def in_one_day():
-    return timezone.now() + dt.timedelta(days=1)
-
 def in_two_weeks():
     return timezone.now() + dt.timedelta(days=14)
 
@@ -122,13 +119,6 @@ class DeclarationLink(models.Model):
         Has this link expired already?
         """
         return self.expires < timezone.now()
-
-    def expire_tomorrow(self):
-        """
-        Update the expires date to be tomorrow.
-        """
-        self.expires = in_one_day()
-        self.save()
 
     def absolute_url(self):
         return 'https://{0}/declare/{1}'.format(settings.DEFAULT_DOMAIN, self.key)
@@ -152,10 +142,14 @@ class DeclarationLink(models.Model):
             )
 
     def new_key(self):
+        """
+        Make this a new link, lasting two weeks from now. It gets a new key,
+        so the old one stops working.
+        """
         self.key = random_token()
         self.issued = timezone.now()
+        self.expires = in_two_weeks()
         self.save()
-        return
 
 
 class WorkDetails(models.Model):

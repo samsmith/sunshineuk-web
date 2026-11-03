@@ -112,16 +112,19 @@ class LinkModelTest(TestCase):
             delta=timedelta(minutes=5),
         )
 
-    def test_expired_link_can_be_given_another_day(self):
+    def test_a_new_key_is_a_new_link_for_two_weeks(self):
         link = models.DeclarationLink.objects.create(
-            email="a@nhs.net", expires=timezone.now() - timedelta(minutes=1)
+            email="a@nhs.net", issued=timezone.now() - timedelta(days=20),
+            expires=timezone.now() - timedelta(days=6),
         )
-        self.assertTrue(link.expired)
-        link.expire_tomorrow()
+        old_key = link.key
+        link.new_key()
         link.refresh_from_db()
+        self.assertNotEqual(link.key, old_key)
         self.assertFalse(link.expired)
+        self.assertAlmostEqual(link.issued, timezone.now(), delta=timedelta(minutes=5))
         self.assertAlmostEqual(
-            link.expires, timezone.now() + timedelta(days=1),
+            link.expires, timezone.now() + timedelta(days=14),
             delta=timedelta(minutes=5),
         )
 
@@ -129,7 +132,6 @@ class LinkModelTest(TestCase):
 class DatesTest(TestCase):
     def test_default_dates_are_timezone_aware(self):
         doctor = make_doctor()
-        self.assertTrue(timezone.is_aware(models.in_one_day()))
         self.assertTrue(timezone.is_aware(models.in_two_weeks()))
         self.assertTrue(timezone.is_aware(
             models.Declaration.objects.create(doctor=doctor).dt_created
@@ -190,26 +192,36 @@ class IdentityViewTest(TestCase):
                     self.assertIn("email", response.context["form"].errors)
         self.assertFalse(models.DeclarationLink.objects.exists())
 
-    def test_asking_again_replaces_the_key(self):
-        link = models.DeclarationLink.objects.create(email="someone@nhs.net")
-        old_key, old_expiry = link.key, link.expires
-        self.client.post(self.url, {"email": "someone@nhs.net"})
-        link.refresh_from_db()
-        self.assertNotEqual(link.key, old_key)
-        self.assertEqual(link.expires, old_expiry)
-        self.assertEqual(models.DeclarationLink.objects.count(), 1)
-
-    def test_asking_again_after_expiry_gives_another_day(self):
+    def test_asking_again_gives_a_new_link_for_another_two_weeks(self):
+        # Asked for 13 days ago, so the old link had a day left.
         link = models.DeclarationLink.objects.create(
-            email="someone@nhs.net", expires=timezone.now() - timedelta(days=1)
+            email="someone@nhs.net", issued=timezone.now() - timedelta(days=13),
+            expires=timezone.now() + timedelta(days=1),
         )
-        self.client.post(self.url, {"email": "someone@nhs.net"})
+        self.assert_asking_again_gives_a_new_link(link)
+
+    def test_asking_again_after_expiry_gives_a_new_link_for_two_weeks(self):
+        link = models.DeclarationLink.objects.create(
+            email="someone@nhs.net", issued=timezone.now() - timedelta(days=15),
+            expires=timezone.now() - timedelta(days=1),
+        )
+        self.assert_asking_again_gives_a_new_link(link)
+
+    def assert_asking_again_gives_a_new_link(self, link):
+        old_key = link.key
+        self.client.post(self.url, {"email": link.email})
         link.refresh_from_db()
-        self.assertFalse(link.expired)
+        self.assertEqual(models.DeclarationLink.objects.count(), 1)
+        self.assertNotEqual(link.key, old_key)
+        self.assertAlmostEqual(link.issued, timezone.now(), delta=timedelta(minutes=5))
         self.assertAlmostEqual(
-            link.expires, timezone.now() + timedelta(days=1),
+            link.expires, timezone.now() + timedelta(days=14),
             delta=timedelta(minutes=5),
         )
+        # The old key stops working, and the new one opens the form.
+        declare = lambda key: self.client.get(reverse("declare", kwargs={"key": key}))
+        self.assertEqual(declare(old_key).status_code, 404)
+        self.assertEqual(declare(link.key).status_code, 200)
 
 
 @PLAIN_STATIC
@@ -267,6 +279,20 @@ class ReEstablishIdentityTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["form"].non_field_errors())
         self.assertFalse(models.DeclarationLink.objects.exists())
+
+    def test_asking_again_gives_a_new_link_for_another_two_weeks(self):
+        link = models.DeclarationLink.objects.create(
+            email="doc@nhs.net", issued=timezone.now() - timedelta(days=13),
+            expires=timezone.now() + timedelta(days=1),
+        )
+        old_key = link.key
+        self.post("doc@nhs.net")
+        link.refresh_from_db()
+        self.assertNotEqual(link.key, old_key)
+        self.assertAlmostEqual(
+            link.expires, timezone.now() + timedelta(days=14),
+            delta=timedelta(minutes=5),
+        )
 
     def test_unknown_gmc_number_is_refused_not_a_crash(self):
         response = self.post("doc@nhs.net", gmc="0000000")
