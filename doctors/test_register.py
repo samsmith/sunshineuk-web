@@ -128,6 +128,14 @@ class LinkModelTest(TestCase):
             delta=timedelta(minutes=5),
         )
 
+    def test_a_link_with_over_a_week_left_is_reusable(self):
+        for days, reusable in ((14, True), (8, True), (6, False), (1, False), (-1, False)):
+            with self.subTest(days_left=days):
+                link = models.DeclarationLink(
+                    email="a@nhs.net", expires=timezone.now() + timedelta(days=days)
+                )
+                self.assertEqual(link.reusable, reusable)
+
 
 class DatesTest(TestCase):
     def test_default_dates_are_timezone_aware(self):
@@ -191,6 +199,19 @@ class IdentityViewTest(TestCase):
                     self.assertEqual(response.status_code, 200)
                     self.assertIn("email", response.context["form"].errors)
         self.assertFalse(models.DeclarationLink.objects.exists())
+
+    def test_asking_again_resends_the_same_link_while_over_a_week_is_left(self):
+        link = models.DeclarationLink.objects.create(
+            email="someone@nhs.net", issued=timezone.now() - timedelta(days=3),
+            expires=timezone.now() + timedelta(days=11),
+        )
+        old_key, old_issued, old_expiry = link.key, link.issued, link.expires
+        with mock.patch.object(models.DeclarationLink, "send") as send:
+            self.client.post(self.url, {"email": "someone@nhs.net"})
+        link.refresh_from_db()
+        self.assertEqual(models.DeclarationLink.objects.count(), 1)
+        self.assertEqual((link.key, link.issued, link.expires), (old_key, old_issued, old_expiry))
+        send.assert_called_once()
 
     def test_asking_again_gives_a_new_link_for_another_two_weeks(self):
         # Asked for 13 days ago, so the old link had a day left.
@@ -262,6 +283,10 @@ class ReEstablishIdentityTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["form"].initial["gmc"], self.doctor.gmc_number)
 
+    def test_heading_says_which_number_it_is(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, f"(GMC# {self.doctor.gmc_number})")
+
     def test_unknown_doctor_is_404(self):
         url = reverse("re-establish-identity", kwargs={"pk": 999999})
         self.assertEqual(self.client.get(url).status_code, 404)
@@ -279,6 +304,13 @@ class ReEstablishIdentityTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["form"].non_field_errors())
         self.assertFalse(models.DeclarationLink.objects.exists())
+
+    def test_asking_again_resends_the_same_link_while_over_a_week_is_left(self):
+        link = models.DeclarationLink.objects.create(email="doc@nhs.net")
+        old_key = link.key
+        self.post("doc@nhs.net")
+        link.refresh_from_db()
+        self.assertEqual(link.key, old_key)
 
     def test_asking_again_gives_a_new_link_for_another_two_weeks(self):
         link = models.DeclarationLink.objects.create(

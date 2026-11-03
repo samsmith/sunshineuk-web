@@ -24,12 +24,12 @@ UK = ZoneInfo("Europe/London")
 OLD_BANDS = [label for _, label in models.DetailedDeclaration.BAND_CHOICES]
 NEW_BANDS = [
     "under £100",
-    "£100 – £1,000",
-    "£1,000 – £2,000",
-    "£2,000 – £5,000",
-    "£5,000 – £10,000",
-    "£10,000 – £50,000",
-    "£50,000 – £100,000",
+    "£100 to under £1,000",
+    "£1,000 to under £2,000",
+    "£2,000 to under £5,000",
+    "£5,000 to under £10,000",
+    "£10,000 to under £50,000",
+    "£50,000 to under £100,000",
     "£100,000+",
 ]
 

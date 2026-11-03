@@ -44,7 +44,7 @@ SECTION_1 = {
     "gmc_number": "7100001",
 }
 
-# The cards under "Your declarations so far", as (title, text). The
+# The cards under "Your entries so far", as (title, text). The
 # "Nothing to declare" card has no title.
 LEDGER = """() => [...document.querySelectorAll('#ledger .record')].map(card => [
   card.querySelector('.record-title') && card.querySelector('.record-title').textContent,
@@ -244,17 +244,17 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
         )
         self.add_ok(page, "Main employment", ["NHS"],
                     details="Consultant cardiologist, Leeds General Infirmary")
-        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], "£5,000 – £10,000",
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], "£5,000 to under £10,000",
                     "Advisory board member, Acme Pharma (anticoagulants)")
         self.add_ok(page, "Sponsored / educational events",
-                    ["Conferences", "Meals / hospitality / travel"], "£1,000 – £2,000",
+                    ["Conferences", "Meals / hospitality / travel"], "£1,000 to under £2,000",
                     "Travel and accommodation for ESC Congress 2026, Munich")
         self.assertEqual(self.ledger(page), [
             ("Main employment", "NHS · Consultant cardiologist, Leeds General Infirmary"),
-            ("Consultancy", "Pharmaceutical companies · £5,000 – £10,000"
+            ("Consultancy", "Pharmaceutical companies · £5,000 to under £10,000"
                             " · “Advisory board member, Acme Pharma (anticoagulants)”"),
             ("Sponsored / educational events",
-             "Conferences, Meals / hospitality / travel · £1,000 – £2,000"
+             "Conferences, Meals / hospitality / travel · £1,000 to under £2,000"
              " · “Travel and accommodation for ESC Congress 2026, Munich”"),
         ])
         dates = self.submit(page)
@@ -270,11 +270,11 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             "h3: Main employment",
             "- Type: NHS · Details: Consultant cardiologist, Leeds General Infirmary",
             "h3: Consultancy",
-            "- Relates to: Pharmaceutical companies · Income band: £5,000 – £10,000"
+            "- Relates to: Pharmaceutical companies · Income band: £5,000 to under £10,000"
             " · Details: Advisory board member, Acme Pharma (anticoagulants)",
             "h3: Sponsored / educational events",
             "- Relates to: Conferences, Meals / hospitality / travel"
-            " · Income band: £1,000 – £2,000"
+            " · Income band: £1,000 to under £2,000"
             " · Details: Travel and accommodation for ESC Congress 2026, Munich",
         ])
 
@@ -305,7 +305,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
         self.assertEqual({field: page.input_value(f"#id_{field}") for field in SECTION_1}, SECTION_1)
         page.fill("#id_job_title", "Consultant Cardiologist and Clinical Director")
         page.click("#btn-identity-done")
-        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], "£10,000 – £50,000",
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], "£10,000 to under £50,000",
                     "Advisory board chair, Acme Pharma (2026–27)")
         dates = self.submit(page)
 
@@ -316,7 +316,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
         # Newest first.
         self.assert_declared(page, dates, [
             "h3: Consultancy",
-            "- Relates to: Pharmaceutical companies · Income band: £10,000 – £50,000"
+            "- Relates to: Pharmaceutical companies · Income band: £10,000 to under £50,000"
             " · Details: Advisory board chair, Acme Pharma (2026–27)",
         ])
         self.assertEqual(page.evaluate(DECLARATIONS)[1], [
@@ -338,16 +338,16 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
         page = self.open_browser()
         self.start(page)
         page.click("#btn-nothing")
-        self.add_ok(page, "Financial", ["Shares, stocks or company ownership"], "£1,000 – £2,000",
+        self.add_ok(page, "Financial", ["Shares, stocks or company ownership"], "£1,000 to under £2,000",
                     "Shares in a medtech start-up")
         self.assertEqual(self.ledger(page), [
-            ("Financial", "Shares, stocks or company ownership · £1,000 – £2,000"
+            ("Financial", "Shares, stocks or company ownership · £1,000 to under £2,000"
                           " · “Shares in a medtech start-up”"),
         ])
         dates = self.submit(page)
         self.assert_declared(page, dates, [
             "h3: Financial",
-            "- Relates to: Shares, stocks or company ownership · Income band: £1,000 – £2,000"
+            "- Relates to: Shares, stocks or company ownership · Income band: £1,000 to under £2,000"
             " · Details: Shares in a medtech start-up",
         ])
 
@@ -361,6 +361,8 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             ("Main employment", "Private work · Private GP sessions, Manchester"),
             (None, "Nothing else to declare."),
         ])
+        # They already said it with the button, so the box is ticked.
+        self.assertTrue(page.is_checked("#chk-nothing"))
         dates = self.submit(page)
         self.assert_declared(page, dates, [
             "h3: Main employment",
@@ -368,26 +370,48 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             "p: Nothing else to declare.",
         ])
 
-    def test_main_employment_alone_is_nothing_else_to_declare(self):
-        # Main employment isn't an interest, so the line comes without the button.
+    def test_main_employment_alone_needs_nothing_else_ticked(self):
+        # Main employment isn't an interest, but "Nothing else to declare" is
+        # only said if the person ticks the box.
         page = self.open_browser()
         self.start(page)
         self.add_ok(page, "Main employment", ["NHS"],
                     details="ST5 Respiratory Medicine, John Radcliffe Hospital")
         self.add_ok(page, "Main employment", ["Academic"],
                     details="Clinical Research Fellow, University of Oxford")
-        listed = [
+        employment = [
             ("Main employment", "NHS · ST5 Respiratory Medicine, John Radcliffe Hospital"),
             ("Main employment", "Academic · Clinical Research Fellow, University of Oxford"),
-            (None, "Nothing else to declare."),
         ]
+        self.assertEqual(self.ledger(page), employment)
+        self.assertTrue(page.is_visible("#nothing-else"))
+        self.assertFalse(page.is_checked("#chk-nothing"))
+
+        # Submitting without ticking it is refused, with a message, and nothing is sent.
+        page.click("#btn-all-finished")
+        page.click("#btn-submit")
+        self.assertTrue(page.is_visible("#nothing-error"))
+        self.assertEqual(self.posts, [])
+
+        # Ticking it adds the line, and takes the message away.
+        page.check("#chk-nothing")
+        self.assertFalse(page.is_visible("#nothing-error"))
+        listed = [*employment, (None, "Nothing else to declare.")]
         self.assertEqual(self.ledger(page), listed)
-        # An interest takes the line away, and removing it brings it back.
+
+        # An interest takes the line and the box away. Removing it again
+        # doesn't bring the line back: the person is asked again.
+        page.click("#btn-back-to-picker")
         self.add_ok(page, "Political / membership organisations",
                     details="Member, Royal Society of Medicine")
         self.assertNotIn((None, "Nothing else to declare."), self.ledger(page))
+        self.assertFalse(page.is_visible("#nothing-else"))
         self.remove(page, "Royal Society of Medicine")
-        self.assertEqual(self.ledger(page), listed)
+        self.assertEqual(self.ledger(page), employment)
+        self.assertTrue(page.is_visible("#nothing-else"))
+        self.assertFalse(page.is_checked("#chk-nothing"))
+
+        page.check("#chk-nothing")
         dates = self.submit(page)
         self.assert_declared(page, dates, [
             "h3: Main employment",
@@ -395,6 +419,44 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             "- Type: Academic · Details: Clinical Research Fellow, University of Oxford",
             "p: Nothing else to declare.",
         ])
+
+    def test_main_employment_and_an_interest_needs_no_box(self):
+        page = self.open_browser()
+        self.start(page)
+        self.add_ok(page, "Main employment", ["NHS"], details="Consultant, Royal Free Hospital")
+        self.add_ok(page, "Other declarations", details="Trustee of a hospice charity")
+        self.assertFalse(page.is_visible("#nothing-else"))
+        dates = self.submit(page)
+        self.assert_declared(page, dates, [
+            "h3: Main employment",
+            "- Type: NHS · Details: Consultant, Royal Free Hospital",
+            "h3: Other declarations",
+            "- Details: Trustee of a hospice charity",
+        ])
+
+    # ---------- "All finished" ----------
+
+    def test_all_finished_goes_to_the_submit_button(self):
+        page = self.open_browser()
+        self.start(page)
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], details="Keep me")
+        page.click("#btn-all-finished")
+        self.assertFalse(page.is_visible("#after-add"))
+        self.assertFalse(page.is_visible("#picker"))
+        self.assertTrue(page.is_visible("#btn-submit"))
+        # "Add more first" brings the picker back.
+        page.click("#btn-back-to-picker")
+        self.assertTrue(page.is_visible("#picker"))
+
+    def test_removing_the_last_entry_after_all_finished_brings_the_picker_back(self):
+        page = self.open_browser()
+        self.start(page)
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], details="Only one")
+        page.click("#btn-all-finished")
+        self.remove(page, "Only one")
+        self.assertTrue(page.is_visible("#picker"))
+        self.assertFalse(page.is_visible("#submit-panel"))
+        self.assertFalse(page.is_visible("#after-add"))
 
     # ---------- adding declarations ----------
 
@@ -408,8 +470,8 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
         # Each category's form: its title, its boxes, and whether it has a band.
         for category, boxes, has_band in (
             ("Main employment", ["NHS", "Academic", "Private work"], False),
-            ("Consultancy", ["Pharmaceutical companies", "Technology companies", "Other"], True),
-            ("Academic", ["Research grants", "Other"], True),
+            ("Consultancy", ["Pharmaceutical companies", "Technology companies", "Other consultancy"], True),
+            ("Academic", ["Research grants", "Other academic"], True),
             ("Other work", ["Public relations", "Commercial relationships", "Media"], True),
             ("Financial",
              ["Patents owned / part-owned", "Shares, stocks or company ownership"], True),
@@ -433,19 +495,19 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             ("Main employment", ["NHS"], "", "Consultant, Barts Heart Centre"),
             ("Main employment", ["Academic"], "", "Honorary senior lecturer, QMUL"),
             ("Main employment", ["Private work"], "", "Sessional work, Harley Street Clinic"),
-            ("Consultancy", ["Pharmaceutical companies", "Technology companies", "Other"],
+            ("Consultancy", ["Pharmaceutical companies", "Technology companies", "Other consultancy"],
              "under £100", "Three one-off calls"),
-            ("Consultancy", [], "£100 – £1,000", "No box ticked"),
-            ("Academic", ["Research grants", "Other"], "£100,000+", "NIHR programme grant"),
-            ("Academic", ["Research grants"], "£1,000 – £2,000", ""),
+            ("Consultancy", [], "£100 to under £1,000", "No box ticked"),
+            ("Academic", ["Research grants", "Other academic"], "£100,000+", "NIHR programme grant"),
+            ("Academic", ["Research grants"], "£1,000 to under £2,000", ""),
             ("Other work", ["Public relations", "Commercial relationships", "Media"],
-             "£2,000 – £5,000", "Media training and paid columns"),
+             "£2,000 to under £5,000", "Media training and paid columns"),
             ("Financial", ["Patents owned / part-owned", "Shares, stocks or company ownership"],
-             "£10,000 – £50,000", "Valve sizing patent; shares in ValveCo Ltd"),
-            ("Spousal / family", [], "£50,000 – £100,000", ""),
+             "£10,000 to under £50,000", "Valve sizing patent; shares in ValveCo Ltd"),
+            ("Spousal / family", [], "£50,000 to under £100,000", ""),
             ("Sponsored / educational events", ["Conferences", "Meals / hospitality / travel"],
              "", "Speaker dinner, no fee"),
-            ("Sponsored / educational events", ["Conferences"], "£5,000 – £10,000", ""),
+            ("Sponsored / educational events", ["Conferences"], "£5,000 to under £10,000", ""),
             ("Political / membership organisations", [], "", "Elected member, BMA council"),
             ("Other declarations", [], "", "Trustee of a local hospice charity (unpaid)"),
         ]
@@ -459,25 +521,25 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             "- Type: Academic · Details: Honorary senior lecturer, QMUL",
             "- Type: Private work · Details: Sessional work, Harley Street Clinic",
             "h3: Consultancy",
-            "- Relates to: Pharmaceutical companies, Technology companies, Other"
+            "- Relates to: Pharmaceutical companies, Technology companies, Other consultancy"
             " · Income band: under £100 · Details: Three one-off calls",
-            "- Income band: £100 – £1,000 · Details: No box ticked",
+            "- Income band: £100 to under £1,000 · Details: No box ticked",
             "h3: Academic",
-            "- Relates to: Research grants, Other · Income band: £100,000+"
+            "- Relates to: Research grants, Other academic · Income band: £100,000+"
             " · Details: NIHR programme grant",
-            "- Relates to: Research grants · Income band: £1,000 – £2,000",
+            "- Relates to: Research grants · Income band: £1,000 to under £2,000",
             "h3: Other work",
             "- Relates to: Public relations, Commercial relationships, Media"
-            " · Income band: £2,000 – £5,000 · Details: Media training and paid columns",
+            " · Income band: £2,000 to under £5,000 · Details: Media training and paid columns",
             "h3: Financial",
             "- Relates to: Patents owned / part-owned, Shares, stocks or company ownership"
-            " · Income band: £10,000 – £50,000 · Details: Valve sizing patent; shares in ValveCo Ltd",
+            " · Income band: £10,000 to under £50,000 · Details: Valve sizing patent; shares in ValveCo Ltd",
             "h3: Spousal / family",
-            "- Income band: £50,000 – £100,000",
+            "- Income band: £50,000 to under £100,000",
             "h3: Sponsored / educational events",
             "- Relates to: Conferences, Meals / hospitality / travel"
             " · Details: Speaker dinner, no fee",
-            "- Relates to: Conferences · Income band: £5,000 – £10,000",
+            "- Relates to: Conferences · Income band: £5,000 to under £10,000",
             "h3: Political / membership organisations",
             "- Details: Elected member, BMA council",
             "h3: Other declarations",
@@ -511,42 +573,42 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
     def test_errors_cancel_and_remove(self):
         page = self.open_browser()
         self.start(page)
-        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], "£100 – £1,000", "Keep me")
-        self.add_ok(page, "Academic", ["Research grants"], "£1,000 – £2,000", "Remove me")
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], "£100 to under £1,000", "Keep me")
+        self.add_ok(page, "Academic", ["Research grants"], "£1,000 to under £2,000", "Remove me")
 
         # Each kind of form says what's missing, and adds nothing.
         no_job = "Choose NHS, Academic or Private work, and add your job title and institution."
         for category, ticked, details, error in (
             ("Consultancy", ["Pharmaceutical companies"], "",
-             "Add an income band or some details before saving this declaration."),
+             "Add an income band or some details before saving this entry."),
             ("Main employment", [], "No type chosen", no_job),
             ("Main employment", ["NHS"], "   ", no_job),
-            ("Other declarations", [], " \n ", "Add some details before saving this declaration."),
+            ("Other declarations", [], " \n ", "Add some details before saving this entry."),
         ):
             with self.subTest(category=category, ticked=ticked, details=details):
                 self.assertEqual(self.add(page, category, ticked, details=details), error)
                 page.click("#btn-cancel-cat")
 
         # Cancel drops what was filled in...
-        self.fill(page, "Financial", ["Shares, stocks or company ownership"], "£2,000 – £5,000",
+        self.fill(page, "Financial", ["Shares, stocks or company ownership"], "£2,000 to under £5,000",
                   "Cancelled")
         page.click("#btn-cancel-cat")
         # ...and putting an error right adds it.
         self.assertIsNotNone(self.add(page, "Consultancy", ["Technology companies"]))
-        page.select_option("#cat-band", "£2,000 – £5,000")
+        page.select_option("#cat-band", "£2,000 to under £5,000")
         page.click("#btn-add-record")
         self.assertTrue(page.is_visible("#after-add"))
         self.remove(page, "Remove me")
 
         self.assertEqual(self.ledger(page), [
-            ("Consultancy", "Pharmaceutical companies · £100 – £1,000 · “Keep me”"),
-            ("Consultancy", "Technology companies · £2,000 – £5,000"),
+            ("Consultancy", "Pharmaceutical companies · £100 to under £1,000 · “Keep me”"),
+            ("Consultancy", "Technology companies · £2,000 to under £5,000"),
         ])
         dates = self.submit(page)
         self.assert_declared(page, dates, [
             "h3: Consultancy",
-            "- Relates to: Pharmaceutical companies · Income band: £100 – £1,000 · Details: Keep me",
-            "- Relates to: Technology companies · Income band: £2,000 – £5,000",
+            "- Relates to: Pharmaceutical companies · Income band: £100 to under £1,000 · Details: Keep me",
+            "- Relates to: Technology companies · Income band: £2,000 to under £5,000",
         ])
 
     # ---------- what's typed ----------
@@ -609,13 +671,13 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
         self.start(page, name="Dr Laura Chen")  # with GMC number 7100001
         self.add_ok(page, "Main employment", ["NHS"],
                     details="Consultant anaesthetist, Royal Free Hospital")
-        self.add_ok(page, "Consultancy", ["Pharmaceutical companies", "Other"], "£2,000 – £5,000",
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies", "Other consultancy"], "£2,000 to under £5,000",
                     "Restored: *stars* & <angle> “curly”")
         self.add_ok(page, "Other declarations", details="Multi\nline restored")
         listed = self.ledger(page)
         self.submit(page)
 
-        self.assertIn("GMC Number: Doctor with this GMC Number already exists.",
+        self.assertIn("GMC number: That number is already on the register",
                       one_line(page.text_content(".alert-danger")))
         self.assertEqual(page.input_value("#id_name"), "Dr Laura Chen")
         # With the number put right, the same declarations are listed, and go through.
@@ -628,7 +690,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             "h3: Main employment",
             "- Type: NHS · Details: Consultant anaesthetist, Royal Free Hospital",
             "h3: Consultancy",
-            "- Relates to: Pharmaceutical companies, Other · Income band: £2,000 – £5,000"
+            "- Relates to: Pharmaceutical companies, Other consultancy · Income band: £2,000 to under £5,000"
             " · Details: Restored: *stars* & <angle> “curly”",
             "h3: Other declarations",
             "- Details: Multi line restored",
@@ -643,7 +705,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             with self.subTest(zone=zone):
                 page = self.open_browser(timezone_id=zone)
                 self.start(page, email=f"qa-{n}@msmith.net", gmc_number=f"710002{n}")
-                self.add_ok(page, "Consultancy", ["Technology companies"], "£100 – £1,000",
+                self.add_ok(page, "Consultancy", ["Technology companies"], "£100 to under £1,000",
                             f"Browser clock in {zone}")
                 browser_date = page.evaluate(BROWSER_DATE)
                 dates = self.submit(page)
@@ -653,7 +715,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
                 # ...and the page has the UK one.
                 self.assert_declared(page, dates, [
                     "h3: Consultancy",
-                    "- Relates to: Technology companies · Income band: £100 – £1,000"
+                    "- Relates to: Technology companies · Income band: £100 to under £1,000"
                     f" · Details: Browser clock in {zone}",
                 ])
                 browser_dates_differed.append(browser_date not in map(uk_date, dates))
@@ -662,7 +724,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
     def test_double_click_sends_one_declaration(self):
         page = self.open_browser()
         self.start(page)
-        self.add_ok(page, "Consultancy", ["Technology companies"], "£100 – £1,000",
+        self.add_ok(page, "Consultancy", ["Technology companies"], "£100 to under £1,000",
                     "Double-clicked")
         self.submit(page, double_click=True)
         page.wait_for_load_state("networkidle")

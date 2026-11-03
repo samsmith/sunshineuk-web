@@ -79,11 +79,11 @@ class DetailedDeclarationTest(TestCase):
             "- **Details:** Spire Leeds\n\n"
             "### Consultancy\n\n"
             "- **Relates to:** Pharmaceutical companies, Technology companies\n"
-            "- **Income band:** £1,000 – £2,000\n"
+            "- **Income band:** £1,000 to under £2,000\n"
             "- **Details:** Advisory board, Acme\\_Pharma \\*2\\* meetings\n\n"
             "### Sponsored / educational events\n\n"
             "- **Relates to:** Conferences, Meals / hospitality / travel\n"
-            "- **Income band:** £100 – £1,000\n"
+            "- **Income band:** £100 to under £1,000\n"
             "- **Details:** Conference in Rome\n\n"
             "### Political / membership organisations\n\n"
             "Declared, with no further details."
@@ -120,7 +120,7 @@ class DetailedDeclarationTest(TestCase):
         for value in expected:
             with self.subTest(value=value):
                 self.assertIn(value, text)
-        self.assertEqual(text.count("£50,000 – £100,000"), len(convert.DETAILED_CATEGORIES))
+        self.assertEqual(text.count("£50,000 to under £100,000"), len(convert.DETAILED_CATEGORIES))
 
 
 class LegacyDeclarationTest(TestCase):
@@ -154,7 +154,7 @@ class LegacyDeclarationTest(TestCase):
             "- **Company:** Acme Pharma · **Reason for receipt of fees:** Speaker fees"
             " · **Total amount received:** under £100\n"
             "- **Company:** Beta Labs · **Reason for receipt of fees:** Advisory board"
-            " · **Total amount received:** £1,000 – £2,000\n\n"
+            " · **Total amount received:** £1,000 to under £2,000\n\n"
             "### Research grants paid by private institutions to your department\n\n"
             "- **Company:** Gamma Foundation · **Reason for receipt of fees:** Trial funding"
             " · **Total amount received:** £100,000+\n\n"

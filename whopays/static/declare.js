@@ -15,12 +15,12 @@
 
   const BANDS = [
     "under £100",
-    "£100 – £1,000",
-    "£1,000 – £2,000",
-    "£2,000 – £5,000",
-    "£5,000 – £10,000",
-    "£10,000 – £50,000",
-    "£50,000 – £100,000",
+    "£100 to under £1,000",
+    "£1,000 to under £2,000",
+    "£2,000 to under £5,000",
+    "£5,000 to under £10,000",
+    "£10,000 to under £50,000",
+    "£50,000 to under £100,000",
     "£100,000+"
   ];
 
@@ -47,7 +47,7 @@
       subs: [
         { id: "pharmaceutical_companies", label: "Pharmaceutical companies" },
         { id: "technology_companies",     label: "Technology companies" },
-        { id: "consultancy_other",        label: "Other" }
+        { id: "consultancy_other",        label: "Other consultancy" }
       ]
     },
     academic: {
@@ -55,7 +55,7 @@
       note: "Grants and academic relationships",
       subs: [
         { id: "research_grants", label: "Research grants" },
-        { id: "academic_other",  label: "Other" }
+        { id: "academic_other",  label: "Other academic" }
       ]
     },
     other_work: {
@@ -108,7 +108,7 @@
     identity: null,          // {name, job_title, primary_employer, gmc_number}
     records: [],             // interest:   {category, category_label, subs:{}, band, details}
                              // employment: {category, category_label, employment_type, details}
-    saidNothing: false,      // the "I have nothing to declare" button was used
+    saidNothing: false,      // "I have nothing to declare" or "nothing else" was ticked
     currentCategory: null
   };
 
@@ -182,7 +182,7 @@
     const isEmp = cat.kind === "employment";
 
     byId("cat-form-title").textContent = cat.label;
-    byId("cat-subs-legend").textContent = isEmp ? "Type of employment" : "This relates to";
+    byId("cat-subs-legend").textContent = isEmp ? "Type of employment" : "This relates to (tick any that apply)";
 
     const subs = byId("cat-subs");
     subs.innerHTML = "";
@@ -237,8 +237,8 @@
         show(err);
         return;
       }
-      // Main employment isn't an interest: with no interests listed,
-      // the declaration still says "Nothing to declare".
+      // Main employment isn't an interest: with no interests listed, the
+      // person is asked to say there's nothing else (see renderLedger).
       state.records.push({
         category: key,
         category_label: cat.label,
@@ -254,8 +254,8 @@
       const band = isFreeText(cat) ? "" : byId("cat-band").value;
       if (!details && (isFreeText(cat) || !band)) {
         err.textContent = isFreeText(cat)
-          ? "Add some details before saving this declaration."
-          : "Add an income band or some details before saving this declaration.";
+          ? "Add some details before saving this entry."
+          : "Add an income band or some details before saving this entry.";
         show(err);
         return;
       }
@@ -283,9 +283,10 @@
     byId("picker").scrollIntoView({ block: "start" });
   });
 
+  // The picker stays hidden: the person has said they're done. "Add more
+  // first" in the submit panel brings it back.
   byId("btn-all-finished").addEventListener("click", () => {
     hide(byId("after-add"));
-    show(byId("picker"));
     byId("submit-panel").scrollIntoView({ block: "start" });
   });
 
@@ -301,6 +302,11 @@
     byId("submit-panel").scrollIntoView({ block: "start" });
   });
 
+  byId("chk-nothing").addEventListener("change", (event) => {
+    state.saidNothing = event.target.checked;
+    renderLedger();
+  });
+
   /* =========================================================
      LEDGER: each record is a card with readable text, plus a
      hidden copy of its variables as JSON.
@@ -309,11 +315,12 @@
     const ledger = byId("ledger");
     ledger.innerHTML = "";
 
-    // A declaration with no interests in it says "Nothing to declare":
-    // after the button, or as soon as main employment is listed. Declaring
-    // an interest takes it away.
+    // A declaration with no interests in it says "Nothing to declare", but
+    // only because the person said so: with the button while the list is
+    // empty, or with the box in the submit panel once main employment is
+    // listed. Declaring an interest takes it away.
     const hasInterests = state.records.some(r => !isEmployment(r));
-    const nothingToDeclare = !hasInterests && (state.saidNothing || state.records.length > 0);
+    const nothingToDeclare = !hasInterests && state.saidNothing;
 
     // So the button is only needed while the list is empty.
     if (state.records.length === 0 && !state.saidNothing) show(byId("btn-nothing"));
@@ -322,9 +329,23 @@
     if (state.records.length === 0 && !nothingToDeclare) {
       ledger.innerHTML = `<p class="ledger-empty">Nothing added yet.</p>`;
       hide(byId("submit-panel"));
+      hide(byId("nothing-else"));
+      // After "All finished" the picker is hidden: if the last entry has
+      // just been removed, bring it back, or there'd be nothing to click.
+      if (byId("cat-form").classList.contains("hidden")) {
+        hide(byId("after-add"));
+        show(byId("picker"));
+      }
       return;
     }
     show(byId("submit-panel"));
+
+    // With only main employment listed, ask whether there's anything else.
+    // Nothing is said for them: they tick the box.
+    const askNothingElse = !hasInterests && state.records.length > 0;
+    byId("nothing-else").classList.toggle("hidden", !askNothingElse);
+    byId("chk-nothing").checked = state.saidNothing;
+    hide(byId("nothing-error"));
 
     // Grouped by category, in the order of the category buttons (so main
     // employment first), each category in the order added: the same order
@@ -360,7 +381,7 @@
       `<span class="record-title">${esc(title)}</span>
        <div class="record-body">${esc(body)}</div>
        <span class="record-json" hidden>${esc(JSON.stringify(rec))}</span>
-       <button type="button" class="close record-remove" aria-label="Remove this declaration"><span aria-hidden="true">&times;</span></button>`;
+       <button type="button" class="close record-remove" aria-label="Remove this entry"><span aria-hidden="true">&times;</span></button>`;
     div.querySelector(".record-remove").addEventListener("click", () => {
       state.records.splice(i, 1);
       renderLedger();
@@ -415,7 +436,7 @@
 
        ### Consultancy
 
-       - **Relates to:** Pharmaceutical companies · **Income band:** £5,000 – £10,000 · **Details:** Advisory board member
+       - **Relates to:** Pharmaceutical companies · **Income band:** £5,000 to under £10,000 · **Details:** Advisory board member
 
      One heading per category, however many declarations it has, and one
      line per declaration under it.
@@ -479,6 +500,13 @@
     }
     if (state.records.length === 0 && !state.saidNothing) {
       event.preventDefault();
+      return;
+    }
+    // With no interests listed, the person has to say there's nothing else.
+    if (!state.records.some(r => !isEmployment(r)) && !state.saidNothing) {
+      event.preventDefault();
+      show(byId("nothing-error"));
+      byId("nothing-else").scrollIntoView({ block: "center" });
       return;
     }
 
@@ -546,8 +574,7 @@
       const rec = cleanRecord(item);
       if (rec) state.records.push(rec);
     });
-    // With main employment listed, "Nothing to declare" follows by itself.
-    state.saidNothing = saidNothing && state.records.length === 0;
+    state.saidNothing = saidNothing && !state.records.some(r => !isEmployment(r));
     renderLedger();
   })();
 })();

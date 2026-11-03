@@ -82,7 +82,7 @@
           Please complete every field before continuing.
         </p>
         <button type="button" class="btn btn-primary" id="btn-identity-done">
-          Done — start my declaration
+          Continue
         </button>
       </div>
     </div>
@@ -102,7 +102,7 @@
     <div class="row box" id="picker">
       <div class="col-md-12">
         <h2>Section 2: What would you like to declare?</h2>
-        <p>Choose a class of declaration. You can add as many as you need, one at a time.</p>
+        <p>Choose a type of entry. You can add as many as you need, one at a time.</p>
         <div class="cat-grid" id="cat-grid"></div>
         <button type="button" class="btn btn-default" id="btn-nothing">I have nothing to declare</button>
       </div>
@@ -112,7 +112,7 @@
       <div class="col-md-8">
         <h2 id="cat-form-title"></h2>
         <fieldset id="cat-subs-wrap">
-          <legend id="cat-subs-legend">This relates to</legend>
+          <legend id="cat-subs-legend">This relates to (tick any that apply)</legend>
           <div id="cat-subs"></div>
         </fieldset>
 
@@ -128,22 +128,22 @@
         </div>
 
         <p class="text-danger hidden" id="cat-error" role="alert"></p>
-        <button type="button" class="btn btn-primary" id="btn-add-record">Add this declaration</button>
+        <button type="button" class="btn btn-primary" id="btn-add-record">Add this entry</button>
         <button type="button" class="btn btn-default" id="btn-cancel-cat">Cancel</button>
       </div>
     </div>
 
     <div class="row box hidden" id="after-add">
       <div class="col-md-12">
-        <h3>Declaration added.</h3>
-        <button type="button" class="btn btn-default" id="btn-add-another">Add another declaration</button>
+        <h3>Entry added.</h3>
+        <button type="button" class="btn btn-default" id="btn-add-another">Add another entry</button>
         <button type="button" class="btn btn-primary" id="btn-all-finished">All finished</button>
       </div>
     </div>
 
     <div class="row box">
       <div class="col-md-12">
-        <h2>Your declarations so far</h2>
+        <h2>Your entries so far</h2>
         <div id="ledger" aria-live="polite">
           <p class="ledger-empty">Nothing added yet.</p>
         </div>
@@ -153,7 +153,12 @@
     <div class="row box hidden" id="submit-panel">
       <div class="col-md-12">
         <h2>Make your declaration</h2>
-        <p>Check the records above, then submit. Your declaration will appear on the public register.</p>
+        <p>Check the entries above, then submit. Your declaration will appear on the public register.</p>
+        {# Shown by declare.js when only main employment is listed. #}
+        <div class="checkbox hidden" id="nothing-else">
+          <label><input type="checkbox" id="chk-nothing"> I have nothing else to declare</label>
+        </div>
+        <p class="text-danger hidden" id="nothing-error" role="alert">Tick the box above to say you have nothing else to declare, or add another entry.</p>
         <button type="submit" form="declare-form" class="btn btn-primary" id="btn-submit">Make my declaration</button>
         <button type="button" class="btn btn-default" id="btn-back-to-picker">Add more first</button>
       </div>

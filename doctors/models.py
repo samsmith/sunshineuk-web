@@ -120,6 +120,14 @@ class DeclarationLink(models.Model):
         """
         return self.expires < timezone.now()
 
+    @property
+    def reusable(self):
+        """
+        Does this link have more than a week left? If so, asking for a link
+        again sends the same key, so it doesn't matter which email is clicked.
+        """
+        return self.expires - timezone.now() > dt.timedelta(days=7)
+
     def absolute_url(self):
         return 'https://{0}/declare/{1}'.format(settings.DEFAULT_DOMAIN, self.key)
 

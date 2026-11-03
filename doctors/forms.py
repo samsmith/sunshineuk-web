@@ -73,6 +73,10 @@ class DeclarationIdentityForm(forms.Form):
         """
         link, created = DeclarationLink.objects.get_or_create(
             email=self.cleaned_data['email'])
+        # With more than a week left, send the same key again: an earlier
+        # email's link keeps working, so it doesn't matter which is clicked.
+        # Otherwise make a new key (and two more weeks), which stops the old
+        # one working.
         if not created and not link.reusable:
             link.new_key()
         link.send()

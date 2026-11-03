@@ -406,7 +406,7 @@ class SectionOneTest(TestCase):
             {"category": "consultancy", "category_label": "Consultancy",
              "subs": {"pharmaceutical_companies": True, "technology_companies": False,
                       "consultancy_other": True},
-             "band": "£2,000 – £5,000", "details": "*stars* & <angle> “curly”\nline two"},
+             "band": "£2,000 to under £5,000", "details": "*stars* & <angle> “curly”\nline two"},
         ]
         response = self.client.post(self.url, declaration_post_data(
             name="Dr Laura Chen", declaration_records=json.dumps(records),
