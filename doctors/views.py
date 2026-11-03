@@ -4,6 +4,7 @@ Views relating to the register.
 import datetime as dt
 from functools import reduce
 import operator
+import re
 
 from django.conf import settings
 from django.db import transaction
@@ -15,7 +16,12 @@ from django.utils import timezone
 from django.views.generic import ListView, DetailView
 from django.views.generic.edit import FormView, CreateView, UpdateView
 
-from doctors import models, forms
+from doctors import convert, models, forms
+
+# declare.js used to start the markdown with its own "## Declaration on ..."
+# heading, dated by the doctor's computer. The server dates declarations now,
+# but a form opened before that change can still send one, so it's dropped.
+BROWSER_HEADING = re.compile(r"\A##[ \t]+Declaration\b[^\n]*\n*")
 
 class EstablishIdentityView(FormView):
     """
@@ -66,9 +72,12 @@ class AbstractDeclareView():
     @transaction.atomic
     def form_valid(self, form):
         # Section 2: everything declared, written up as markdown by
-        # declare.js. Browsers send form text with CRLF line endings.
+        # declare.js. Browsers send form text with CRLF line endings, and
+        # pasted text can carry NUL characters, which can't be seen and
+        # which Postgres can't store.
         markdown = self.request.POST.get('declaration', '')
-        markdown = markdown.replace('\r\n', '\n').strip()
+        markdown = markdown.replace('\r\n', '\n').replace('\x00', '').strip()
+        markdown = BROWSER_HEADING.sub('', markdown).strip()
         if not markdown:
             form.add_error(
                 None, "Your declarations didn't come through. Please add them again."
@@ -82,7 +91,14 @@ class AbstractDeclareView():
         # can't be null, so it's stored as an empty string.
         form.instance.employment_address = ""
         self.object = form.save()
-        models.DeclarationV3.objects.create(doctor=self.object, markdown=markdown)
+
+        # Dated by the server in UK time, not by the doctor's computer, and
+        # headed the same way as converted declarations.
+        now = timezone.now()
+        heading = convert.heading(now.astimezone(convert.UK).date())
+        models.DeclarationV3.objects.create(
+            doctor=self.object, timestamp=now, markdown=f"{heading}\n\n{markdown}"
+        )
 
         self.link.delete()
         if not settings.SKIP_EMAIL_VERIFICATION:
@@ -153,6 +169,9 @@ class DoctorListView(ListView):
 
 class SearchView(ListView):
     model = models.DeclarationV3
+    # The template kept its old name; the default for this model would be
+    # doctors/declarationv3_list.html.
+    template_name = 'doctors/detaileddeclaration_list.html'
 
     SEARCH_FIELDS = [
         "markdown",

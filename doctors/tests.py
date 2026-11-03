@@ -1,4 +1,6 @@
+import datetime as dt
 from datetime import timedelta
+from unittest import mock
 
 from django.conf import settings
 from django.test import TestCase, override_settings
@@ -22,14 +24,15 @@ PLAIN_STATIC = override_settings(STORAGES={
 def declaration_post_data(**fields):
     """
     A valid POST body for the declare / add-declaration views: the four
-    section 1 fields, and section 2 as declare.js sends it.
+    section 1 fields, and section 2 as declare.js sends it (the server adds
+    the dated heading).
     """
     data = {
         "name": "Dr Example",
         "gmc_number": "7654321",
         "job_title": "Consultant",
         "primary_employer": "An NHS Trust",
-        "declaration": "## Declaration on 1 November 2026\r\n\r\nNothing to declare.",
+        "declaration": "Nothing to declare.",
         "declaration_records": '[{"nothing_to_declare": true}]',
     }
     data.update(fields)
@@ -201,27 +204,78 @@ class DeclarationV3Test(TestCase):
         self.link = models.DeclarationLink.objects.create(email="new@nhs.net")
         self.url = reverse("declare", kwargs={"key": self.link.key})
 
+    def declare_at(self, when, **fields):
+        """Make a declaration as if the server's clock said `when`."""
+        with mock.patch("django.utils.timezone.now", return_value=when):
+            response = self.client.post(self.url, declaration_post_data(**fields))
+        self.assertEqual(response.status_code, 302)
+        return models.Doctor.objects.get(gmc_number="7654321").declarationv3_set.get()
+
     def test_saved_to_declaration_v3_with_a_timestamp(self):
         self.assertEqual(models.DeclarationV3._meta.db_table, "declaration_v3")
         before = timezone.now()
-        response = self.client.post(self.url, declaration_post_data())
+        response = self.client.post(self.url, declaration_post_data(
+            declaration="### Consultancy\r\n\r\n- **Details:** Acme\r\n- **Details:** Beta",
+        ))
 
         doctor = models.Doctor.objects.get(gmc_number="7654321")
         self.assertRedirects(response, doctor.get_absolute_url(),
                              fetch_redirect_response=False)
         declaration = doctor.declarationv3_set.get()
-        # Stored with "\n" line endings, not the browser's "\r\n".
-        self.assertEqual(declaration.markdown,
-                         "## Declaration on 1 November 2026\n\nNothing to declare.")
+        # Under the server's dated heading (tested below), and stored with
+        # "\n" line endings, not the browser's "\r\n".
+        heading, body = declaration.markdown.split("\n\n", 1)
+        self.assertRegex(heading, r"^## Declaration on \d{1,2} [A-Z][a-z]+ \d{4}$")
+        self.assertEqual(body, "### Consultancy\n\n- **Details:** Acme\n- **Details:** Beta")
         self.assertGreaterEqual(declaration.timestamp, before)
         self.assertFalse(models.DeclarationLink.objects.filter(pk=self.link.pk).exists())
 
+    def test_dated_by_the_server_in_uk_time(self):
+        # 23:30 UTC on 14 July is 00:30 on 15 July in London (BST). Any date
+        # the browser sent, as declare.js used to, is replaced.
+        when = dt.datetime(2026, 7, 14, 23, 30, tzinfo=dt.timezone.utc)
+        declaration = self.declare_at(
+            when, declaration="## Declaration on 16 July 2026\r\n\r\nNothing to declare."
+        )
+        self.assertEqual(declaration.timestamp, when)
+        self.assertEqual(declaration.markdown,
+                         "## Declaration on 15 July 2026\n\nNothing to declare.")
+
+    def test_dated_in_uk_time_in_winter_too(self):
+        # GMT: London and UTC agree.
+        declaration = self.declare_at(dt.datetime(2026, 1, 14, 23, 30, tzinfo=dt.timezone.utc))
+        self.assertEqual(declaration.markdown,
+                         "## Declaration on 14 January 2026\n\nNothing to declare.")
+
+    def test_search_results_show_the_same_date(self):
+        self.declare_at(dt.datetime(2026, 7, 14, 23, 30, tzinfo=dt.timezone.utc))
+        response = self.client.get(reverse("search"), {"q": "Dr Example"})
+        self.assertContains(response, "Declaration on 15 July 2026")
+
+    def test_nul_characters_are_dropped(self):
+        # Pasted text can carry one, unseen; Postgres can't store it.
+        declaration = self.declare_at(
+            dt.datetime(2026, 11, 2, 12, tzinfo=dt.timezone.utc),
+            declaration="### Other declarations\r\n\r\n- **Details:** Before\x00After",
+        )
+        self.assertEqual(declaration.markdown, (
+            "## Declaration on 2 November 2026\n\n"
+            "### Other declarations\n\n- **Details:** BeforeAfter"
+        ))
+
     def test_missing_declaration_sends_the_form_back(self):
-        response = self.client.post(self.url, declaration_post_data(declaration="  "))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "come through. Please add them again.")
-        self.assertFalse(models.Doctor.objects.exists())
-        self.assertTrue(models.DeclarationLink.objects.filter(pk=self.link.pk).exists())
+        # Nothing at all, or nothing but a heading or a NUL.
+        for declaration in ("  ", "## Declaration on 1 November 2026\r\n\r\n", "\x00"):
+            with self.subTest(declaration=declaration):
+                response = self.client.post(
+                    self.url, declaration_post_data(declaration=declaration)
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "come through. Please add them again.")
+                self.assertFalse(models.Doctor.objects.exists())
+                self.assertTrue(
+                    models.DeclarationLink.objects.filter(pk=self.link.pk).exists()
+                )
 
     def test_shown_on_the_register_page_safely(self):
         doctor = models.Doctor.objects.create(

@@ -32,7 +32,9 @@ ALLOWED_HOSTS = [
     '.whopaysthisdoctor.org',
 ]
 
-TIME_ZONE = 'UTC'
+# UK time, for dates shown on the site and in the admin. Declarations are
+# dated in UK time too (doctors/views.py). The database stores UTC.
+TIME_ZONE = 'Europe/London'
 LANGUAGE_CODE = 'en-us'
 
 SITE_ID = 1

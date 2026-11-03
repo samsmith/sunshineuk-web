@@ -408,8 +408,6 @@
   /* =========================================================
      MARKDOWN
 
-       ## Declaration on 1 November 2026
-
        ### Main employment
 
        - **Type:** NHS · **Details:** Consultant, Leeds Teaching Hospitals
@@ -426,8 +424,10 @@
      "Nothing to declare." ("Nothing else to declare." after
      main employment).
 
-     "##" rather than "#" so it sits under the doctor's name on
-     their register page.
+     The server puts "## Declaration on 1 November 2026" on top,
+     dated by its own clock in UK time rather than by this
+     computer's. "##" rather than "#" so it sits under the
+     doctor's name on their register page.
      ========================================================= */
 
   /* Escape what doctors type, so it shows exactly as typed and can't
@@ -441,12 +441,9 @@
       .replace(/~/g, "&#126;");                // strikethrough; markdown-deux has no "\~"
   }
 
-  function buildDeclarationMarkdown(date = new Date()){
-    const heading = "Declaration on " +
-      date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-
+  function buildDeclarationMarkdown(){
     const records = ledgerRecords();
-    const blocks = ["## " + heading];
+    const blocks = [];
 
     // The declarations, grouped by category (in the ledger's order).
     const byCategory = new Map();
