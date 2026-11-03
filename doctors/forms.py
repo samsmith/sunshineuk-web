@@ -38,6 +38,23 @@ class DoctorForm(ModelForm):
         model = Doctor
         exclude = ['email']
 
+class DeclareDoctorForm(ModelForm):
+    """
+    Section 1 of the declaration form: the doctor's details.
+    """
+    class Meta:
+        model = Doctor
+        fields = ['name', 'gmc_number', 'job_title', 'primary_employer']
+        labels = {'gmc_number': 'GMC number'}
+        error_messages = {
+            'gmc_number': {
+                'unique': (
+                    "That number is already on the register under a different "
+                    "email address. Email team@sunshineuk.org and we'll sort it out."
+                ),
+            },
+        }
+
 class BenefitForm(ModelForm):
     class Meta:
         exclude = ['declaration']
@@ -56,8 +73,7 @@ class DeclarationIdentityForm(forms.Form):
         """
         link, created = DeclarationLink.objects.get_or_create(
             email=self.cleaned_data['email'])
-        if not created:
-            # Asking again gives a new link, for another two weeks.
+        if not created and not link.reusable:
             link.new_key()
         link.send()
         return

@@ -4,3 +4,4 @@
 # Heroku only installs requirements.txt.
 -r requirements.txt
 playwright>=1.40,<2
+

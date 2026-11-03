@@ -7,6 +7,7 @@ import operator
 import re
 
 from django.conf import settings
+from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q
 from django.urls import reverse_lazy, reverse
@@ -66,8 +67,10 @@ class ReEstablishIdentityView(FormView):
 class AbstractDeclareView():
     model = models.Doctor
     template_name = 'declare.html'
-    # The four fields on section 1 of the form.
-    fields = ['name', 'gmc_number', 'job_title', 'primary_employer']
+    # Shown at the top of the register page they land on after declaring.
+    success_message = "Thanks, your declaration is now on the public register."
+    # Section 1 of the form: the four fields of DeclareDoctorForm.
+    form_class = forms.DeclareDoctorForm
 
     @transaction.atomic
     def form_valid(self, form):
@@ -101,12 +104,19 @@ class AbstractDeclareView():
         )
 
         self.link.delete()
+        messages.success(self.request, self.success_message)
         if not settings.SKIP_EMAIL_VERIFICATION:
             self.object.send_declaration_thanks()
         return HttpResponseRedirect(self.get_success_url())
 
 
 class DeclareView(AbstractDeclareView, CreateView):
+    # Only doctors not yet on the register come here (see DoctorListView).
+    success_message = (
+        "Thanks, your declaration is now on the public register. "
+        "You'll appear in the list of doctors within an hour."
+    )
+
     def dispatch(self, *args, **kwargs):
         link = get_object_or_404(models.DeclarationLink, key=kwargs['key'])
         if link.expired:

@@ -13,6 +13,8 @@
       <p>
         If in doubt, it is always best to declare.
       </p>
+      <p>Your name, GMC number, job, employer and everything you declare will be shown publicly. Your email won’t.
+      </p>
     </div>
   </div>
 
@@ -38,6 +40,9 @@
                 {% endfor %}
               {% endfor %}
             </ul>
+            {% if request.POST.declaration and request.POST.declaration_records %}
+              <p>Nothing you added in Section 2 has been lost. Correct the above and carry on; your list will be there.</p>
+            {% endif %}
           </div>
         {% endif %}
 

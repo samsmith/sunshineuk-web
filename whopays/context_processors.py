@@ -5,7 +5,7 @@ from django.conf import settings
 
 # Only these settings are exposed to templates. Never expose the whole of
 # settings: it contains SECRET_KEY, database credentials and API keys.
-EXPOSED_SETTINGS = ['CONTACT_EMAIL', 'DEFAULT_DOMAIN', 'DEFAULT_FROM_EMAIL']
+EXPOSED_SETTINGS = ['CONTACT_EMAIL', 'DEFAULT_DOMAIN', 'DEFAULT_FROM_EMAIL', 'NHS_EMAIL_SUFFIXES']
 
 
 def settings_processor(request):

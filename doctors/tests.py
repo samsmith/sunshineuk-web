@@ -317,6 +317,14 @@ class DeclarationV3Test(TestCase):
         doctor.declarationv3_set.update(timestamp=timezone.now() - timedelta(hours=2))
         self.assertIn(doctor, listed())
 
+    def test_first_declaration_is_confirmed_on_the_page_they_land_on(self):
+        response = self.client.post(self.url, declaration_post_data(), follow=True)
+        self.assertContains(response, "Thanks, your declaration is now on the public register.")
+        self.assertContains(response, "within an hour")
+        # Shown once: a refresh doesn't repeat it.
+        again = self.client.get(response.redirect_chain[-1][0])
+        self.assertNotContains(again, "Thanks, your declaration")
+
     def test_a_link_works_once(self):
         # Pressing Back after declaring, or a second click getting through:
         # the link has gone, so nothing more is saved.
@@ -404,7 +412,9 @@ class SectionOneTest(TestCase):
             name="Dr Laura Chen", declaration_records=json.dumps(records),
         ))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "GMC Number: Doctor with this GMC Number already exists.")
+        self.assertContains(response, "GMC number: That number is already on the register")
+        self.assertContains(response, "Email team@sunshineuk.org and we&#x27;ll sort it out.")
+        self.assertContains(response, "Nothing you added in Section 2 has been lost.")
         # Nothing saved, and the link still works...
         self.assertEqual(models.Doctor.objects.count(), 1)
         self.assertFalse(models.DeclarationV3.objects.exists())
@@ -476,6 +486,10 @@ class ReturningDoctorTest(TestCase):
         self.assertEqual(
             (self.doctor.job_title, self.doctor.email), ("Clinical Director", "returning@nhs.net")
         )
+        # They're thanked, with no "within an hour": they're in the list already.
+        page = self.client.get(self.doctor.get_absolute_url())
+        self.assertContains(page, "Thanks, your declaration is now on the public register.")
+        self.assertNotContains(page, "within an hour")
         # Both declarations on their page, newest first.
         html = self.client.get(self.doctor.get_absolute_url()).content.decode()
         self.assertLess(html.index("Second declaration"), html.index("First declaration"))
