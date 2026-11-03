@@ -1,0 +1,6 @@
+# For running the tests: the site's own requirements, plus Playwright for the
+# browser tests (doctors/test_browser.py), which also need its Chromium:
+#   playwright install chromium
+# Heroku only installs requirements.txt.
+-r requirements.txt
+playwright>=1.40,<2

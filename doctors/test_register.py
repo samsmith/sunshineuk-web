@@ -3,12 +3,19 @@ Tests for the register around the declaration form: asking for a link, which
 links open the form, the list of doctors and its shuffle, doctors' pages,
 search, dates and the admin. Submitting the form is tested in doctors/tests.py.
 """
+import datetime as dt
+import html
 import itertools
+import re
 from datetime import timedelta
-from unittest import mock
+from unittest import mock, skipUnless
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.staticfiles import finders
+from django.core import mail
+from django.db import connection
+from django.template import Context, Template
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -26,6 +33,43 @@ PLAIN_STATIC = override_settings(STORAGES={
 })
 
 _gmc_numbers = itertools.count(9000001)
+
+# Awkward things doctors could type into a declaration, all of which should
+# show exactly as typed (on one line). Also used by test_browser.py.
+AWKWARD_TEXT = [
+    # Markdown and HTML
+    "*asterisks* and **double** and ***triple***",
+    "_underscores_ and __double__ and a snake_case_name",
+    "`backticks` and ``double backticks`` and ```triple```",
+    "[link text](https://example.com) and ![image](https://example.com/x.png)",
+    "<b>bold tag</b> <i>italic</i> <https://example.com> a < b > c",
+    "Entities: &copy; &amp; &#169; &#x27; &nbsp; R&D AT&T",
+    "Tildes: ~~struck~~ and ~approx 5~ and ~ alone",
+    "Backslashes: C:\\Users\\doc\\ and \\* and \\_ and \\\\ and trailing \\",
+    "# Not a heading > not a quote 1. not a list - not a bullet + not a bullet",
+    "Pipes | table | cells --- and === and ___ and *** and - - -",
+    "{curly} (parens) !bang #hashtag @mention 100% $5 ^caret",
+    "HTML comment <!-- hidden --> and &lt;already escaped&gt;",
+    "**Details:** fake label · Income band: £1m · Relates to: nothing",
+    "Footnote[^1] and reference [1] and [x][y] and <span>",
+    # Attempts to run script
+    "\"><script>alert(document.cookie)</script>",
+    "[click me](javascript:alert('link'))",
+    "<img src=x onerror=alert('details')>",
+    "javascript:alert(1) and data:text/html,<script>alert(2)</script>",
+    # Beyond ASCII
+    "Zoë’s café – “quotes” — em dash … ellipsis · middot",
+    "東京での講演 (Tokyo lecture) 日本語",
+    "مقابلة إذاعية (radio interview, Arabic)",
+    "Emoji 🎉🩺 👩‍⚕️ flags 🇬🇧 and math 𝛑≈3.14 and e\u0301 (decomposed) vs é",
+    "Currency £€$¥₹ and ½ ¾ ° ± × ÷",
+    # Spacing and line breaks
+    "   Leading and trailing spaces   ",
+    "Multiple    internal     spaces\tand\ttabs",
+    "Line one\nLine two\n\nParagraph two\n\n\n- looks like a bullet\n# looks like a heading",
+    "Non-breaking\u00a0space and thin\u2009space and ideographic\u3000space",
+    "Windows\r\nline\r\nendings",
+]
 
 
 def make_doctor(**fields):
@@ -123,6 +167,29 @@ class IdentityViewTest(TestCase):
         self.assertIn("email", response.context["form"].errors)
         self.assertFalse(models.DeclarationLink.objects.exists())
 
+    def test_team_addresses_get_a_link_however_typed(self):
+        # The team's own domains (msmith.net and the rest) work like NHS ones.
+        for suffix in settings.ADMIN_SUFFIXES:
+            with self.subTest(suffix=suffix):
+                response = self.client.post(
+                    self.url, {"email": f"  QA.Tester@Sub.{suffix.upper()}  "}
+                )
+                self.assertRedirects(
+                    response, reverse("identity-pending"), fetch_redirect_response=False
+                )
+                self.assertTrue(models.DeclarationLink.objects.filter(
+                    email=f"qa.tester@sub.{suffix}"
+                ).exists())
+
+    def test_lookalikes_of_team_addresses_are_refused(self):
+        for suffix in settings.ADMIN_SUFFIXES:
+            for email in (f"qa@not{suffix}", f"qa@{suffix}.evil.com"):
+                with self.subTest(email=email):
+                    response = self.client.post(self.url, {"email": email})
+                    self.assertEqual(response.status_code, 200)
+                    self.assertIn("email", response.context["form"].errors)
+        self.assertFalse(models.DeclarationLink.objects.exists())
+
     def test_asking_again_replaces_the_key(self):
         link = models.DeclarationLink.objects.create(email="someone@nhs.net")
         old_key, old_expiry = link.key, link.expires
@@ -143,6 +210,23 @@ class IdentityViewTest(TestCase):
             link.expires, timezone.now() + timedelta(days=1),
             delta=timedelta(minutes=5),
         )
+
+
+@PLAIN_STATIC
+class LinkEmailTest(TestCase):
+    """
+    The email the link goes out in (DeclarationLink.send).
+    """
+
+    def test_link_is_emailed_to_the_address_and_opens_the_form(self):
+        self.client.post(reverse("establish-identity"), {"email": "Dr.Who@NHS.net"})
+        link = models.DeclarationLink.objects.get()
+        [message] = mail.outbox
+        self.assertEqual(message.to, ["dr.who@nhs.net"])
+        self.assertEqual(message.subject, "Sunshine UK - Edit your public record")
+        url = f"https://{settings.DEFAULT_DOMAIN}/declare/{link.key}"
+        self.assertIn(f'href="{url}"', message.alternatives[0][0])
+        self.assertEqual(self.client.get(f"/declare/{link.key}").status_code, 200)
 
 
 @no_email
@@ -358,6 +442,61 @@ class DoctorPageTest(TestCase):
                 self.assertNotContains(response, "<img src=x")
                 self.assertContains(response, "&lt;script&gt;alert(1)&lt;/script&gt;")
 
+    def test_a_declaration_as_the_form_writes_it(self):
+        doctor = make_doctor(
+            name="Dr Amara Okafor", gmc_number="7100001", job_title="Consultant Cardiologist",
+            primary_employer="Leeds Teaching Hospitals NHS Trust",
+        )
+        now = timezone.now()
+        models.DeclarationV3.objects.create(
+            doctor=doctor, timestamp=now - timedelta(days=1),
+            markdown="## Declaration on 1 November 2026\n\nNothing to declare.",
+        )
+        models.DeclarationV3.objects.create(doctor=doctor, timestamp=now, markdown=(
+            "## Declaration on 2 November 2026\n\n"
+            "### Main employment\n\n"
+            "- **Type:** NHS · **Details:** Consultant cardiologist, Leeds General Infirmary\n\n"
+            "### Consultancy\n\n"
+            "- **Relates to:** Pharmaceutical companies · **Income band:** £5,000 – £10,000"
+            " · **Details:** Advisory board member\n"
+            "- **Income band:** under £100"
+        ))
+        response = self.client.get(doctor.get_absolute_url())
+        page = response.content.decode()
+        self.assertContains(response, "Dr Amara Okafor | GMC# 7100001")
+        for element in (
+            '<ul class="list-unstyled identifiers"><li>Leeds Teaching Hospitals NHS Trust</li>'
+            "<li>Consultant Cardiologist</li></ul>",
+            "<h2>Declaration on 2 November 2026</h2>",
+            "<h3>Main employment</h3>",
+            "<ul><li><strong>Type:</strong> NHS · <strong>Details:</strong>"
+            " Consultant cardiologist, Leeds General Infirmary</li></ul>",
+            "<h3>Consultancy</h3>",
+            "<ul><li><strong>Relates to:</strong> Pharmaceutical companies"
+            " · <strong>Income band:</strong> £5,000 – £10,000"
+            " · <strong>Details:</strong> Advisory board member</li>"
+            "<li><strong>Income band:</strong> under £100</li></ul>",
+            "<h2>Declaration on 1 November 2026</h2>",
+            "<p>Nothing to declare.</p>",
+        ):
+            with self.subTest(element=element):
+                self.assertInHTML(element, page)
+        # Each declaration says how to report a mistake in it.
+        self.assertContains(response, "Something wrong with this declaration?", count=2)
+
+    def test_what_doctors_type_shows_exactly_as_typed(self):
+        # The form escapes what's typed (mdEscape() in static/declare.js, the
+        # same as convert.text()), so the page shows it as typed, on one line,
+        # with no formatting, links or HTML of its own.
+        for typed in AWKWARD_TEXT:
+            with self.subTest(typed=typed):
+                rendered = Template("{% load markdown_deux_tags %}{{ md|markdown }}").render(
+                    Context({"md": f"- **Details:** {convert.text(typed)}"})
+                )
+                self.assertEqual(re.findall(r"<(\w+)", rendered), ["ul", "li", "strong"])
+                shown = html.unescape(re.sub(r"<[^>]+>", "", rendered)).strip()
+                self.assertEqual(shown, "Details: " + " ".join(typed.split()))
+
 
 @PLAIN_STATIC
 class SearchTest(TestCase):
@@ -406,6 +545,35 @@ class SearchTest(TestCase):
     def test_search_term_is_shown_as_text_not_html(self):
         response = self.client.get(reverse("search"), {"q": "<script>alert(1)</script>"})
         self.assertNotContains(response, "<script>alert(1)")
+
+    def test_every_declaration_of_a_doctor_with_its_date(self):
+        doctor = make_doctor(gmc_number="7100001")
+        for when, date in (
+            (dt.datetime(2025, 1, 2, 9, tzinfo=dt.timezone.utc), "2 January 2025"),
+            # 00:30 on 15 July in London (BST).
+            (dt.datetime(2026, 7, 14, 23, 30, tzinfo=dt.timezone.utc), "15 July 2026"),
+        ):
+            models.DeclarationV3.objects.create(
+                doctor=doctor, timestamp=when,
+                markdown=f"## Declaration on {date}\n\nNothing to declare.",
+            )
+        response = self.client.get(reverse("search"), {"q": "7100001"})
+        # Newest first, dated as on the doctor's page.
+        self.assertEqual(
+            re.findall(r"Declaration on ([^<]+?)\s*</p>", response.content.decode()),
+            ["15 July 2026", "2 January 2025"],
+        )
+
+    @skipUnless(connection.vendor == "postgresql",
+                "SQLite only ignores the case of ASCII letters")
+    def test_accented_letters_in_any_case(self):
+        declaration = models.DeclarationV3.objects.create(
+            doctor=make_doctor(),
+            markdown="## Declaration\n\n- **Details:** Congrès de cardiologie, Paris",
+        )
+        for query in ("Congrès", "CONGRÈS", "congrès"):
+            with self.subTest(query=query):
+                self.assertEqual(self.search(query), [declaration])
 
 
 @PLAIN_STATIC
