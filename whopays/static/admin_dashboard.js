@@ -3,6 +3,18 @@
 (function () {
   "use strict";
 
+  // The links all start the same and differ at the end, so the boxes show
+  // the end. The table makes a box narrower to keep Copy on its line, so a
+  // box is put back at the end whenever it is resized, unless someone is
+  // using it.
+  const showEnd = (input) => {
+    if (document.activeElement !== input) input.scrollLeft = input.scrollWidth;
+  };
+  document.querySelectorAll("input.link-url").forEach((input) => {
+    showEnd(input);
+    if (window.ResizeObserver) new ResizeObserver(() => showEnd(input)).observe(input);
+  });
+
   document.addEventListener("click", async (event) => {
     const button = event.target.closest(".copy-link");
     if (!button) return;
