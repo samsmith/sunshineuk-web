@@ -39,9 +39,12 @@
               {% if link.expired %}
                 <span class="help">Make it again above to renew it.</span>
               {% else %}
-                <input type="text" readonly class="link-url" id="link-{{ link.pk }}"
-                       value="{{ link.absolute_url }}" aria-label="Declaration link for {{ link.email }}">
-                <button type="button" class="button copy-link" data-for="link-{{ link.pk }}">Copy</button>
+                {# One flex row: the URL box shrinks, so Copy stays on its line. #}
+                <div class="link-row">
+                  <input type="text" readonly class="link-url" id="link-{{ link.pk }}"
+                         value="{{ link.absolute_url }}" aria-label="Declaration link for {{ link.email }}">
+                  <button type="button" class="button copy-link" data-for="link-{{ link.pk }}">Copy</button>
+                </div>
               {% endif %}
             </td>
           </tr>

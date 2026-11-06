@@ -56,14 +56,24 @@
   font-weight: 600;
 }
 
-.sunshine-dashboard .link-cell {
-  white-space: nowrap;
+/* The URL box and its Copy button share one line. The box takes the room
+   there is, up to 24em, and shrinks before the button is pushed down. */
+.sunshine-dashboard .link-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .sunshine-dashboard input.link-url {
-  width: 24em;
+  flex: 1 1 24em;
+  min-width: 6em;
+  width: auto;
   font-family: var(--font-family-monospace);
   font-size: 0.75rem;
+}
+
+.sunshine-dashboard .link-row .copy-link {
+  flex: none;
 }
 
 .sunshine-dashboard tr.just-made td {
