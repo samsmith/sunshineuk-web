@@ -93,17 +93,28 @@
 
   <div id="screen-main" class="hidden">
 
+    {# Who is declaring, and what they have declared so far, in one box. #}
     <div class="row box">
       <div class="col-md-12">
         <p class="declaring-as" id="identity-summary"></p>
+        <h2>Your entries so far</h2>
+        <div id="ledger" aria-live="polite">
+          <p class="ledger-empty">Nothing added yet.</p>
+        </div>
       </div>
     </div>
 
     <div class="row box" id="picker">
       <div class="col-md-12">
         <h2>Section 2: What would you like to declare?</h2>
+        {# Shown after an entry is added, as the types are offered again. #}
+        <p class="alert alert-success hidden" id="after-add" role="status">Entry added.</p>
         <p>Choose a type of entry. You can add as many as you need, one at a time.</p>
-        <div class="cat-grid" id="cat-grid"></div>
+        {# declare.js puts the types of entry before "All finished", which #}
+        {# is only offered once there is something to submit.             #}
+        <div class="cat-grid" id="cat-grid">
+          <button type="button" class="btn btn-primary hidden" id="btn-all-finished">All finished<span class="cat-note">Check your entries and submit</span></button>
+        </div>
         <button type="button" class="btn btn-default" id="btn-nothing">I have nothing to declare</button>
       </div>
     </div>
@@ -130,23 +141,6 @@
         <p class="text-danger hidden" id="cat-error" role="alert"></p>
         <button type="button" class="btn btn-primary" id="btn-add-record">Add this entry</button>
         <button type="button" class="btn btn-default" id="btn-cancel-cat">Cancel</button>
-      </div>
-    </div>
-
-    <div class="row box hidden" id="after-add">
-      <div class="col-md-12">
-        <h3>Entry added.</h3>
-        <button type="button" class="btn btn-default" id="btn-add-another">Add another entry</button>
-        <button type="button" class="btn btn-primary" id="btn-all-finished">All finished</button>
-      </div>
-    </div>
-
-    <div class="row box">
-      <div class="col-md-12">
-        <h2>Your entries so far</h2>
-        <div id="ledger" aria-live="polite">
-          <p class="ledger-empty">Nothing added yet.</p>
-        </div>
       </div>
     </div>
 

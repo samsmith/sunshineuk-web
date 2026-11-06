@@ -20,7 +20,9 @@ from doctors import models
 UK = ZoneInfo("Europe/London")
 
 # The old band labels, in order, and the labels the current form uses for
-# the same bands. Old benefits store the band as its position (1-8).
+# the same bands. Old benefits store the band as its position (1-8). The two
+# lists must stay the same length; the form also offers a £0 band, first,
+# which only declare.js knows about (old declarations can't have it).
 OLD_BANDS = [label for _, label in models.DetailedDeclaration.BAND_CHOICES]
 NEW_BANDS = [
     "under £100",

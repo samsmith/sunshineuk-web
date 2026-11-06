@@ -316,6 +316,16 @@ Declare Form
   margin-top: 2px;
 }
 
+/* The notes are grey, which doesn't read on the blue "All finished". */
+.cat-grid .btn-primary .cat-note {
+  color: #fff;
+  opacity: 0.85;
+}
+
+#after-add {
+  padding: 10px 14px;
+}
+
 #cat-form legend {
   border: 0;
   font-size: 14px;
@@ -324,7 +334,6 @@ Declare Form
 }
 
 #cat-form .btn + .btn,
-#after-add .btn + .btn,
 #submit-panel .btn + .btn {
   margin-left: 8px;
 }

@@ -28,7 +28,8 @@ except ImportError:
     sync_playwright = None
 
 UK = ZoneInfo("Europe/London")
-BANDS = convert.NEW_BANDS  # as the form labels them
+ZERO_BAND = "£0 (nothing received)"
+BANDS = [ZERO_BAND, *convert.NEW_BANDS]  # as the form labels them
 
 # The category buttons, in the order the form shows them.
 CATEGORIES = [
@@ -169,8 +170,6 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
 
     def fill(self, page, category, ticked=(), band="", details=""):
         """Open a category's form and fill it in; `ticked` are box labels."""
-        if page.is_visible("#btn-add-another"):
-            page.click("#btn-add-another")
         page.locator("#cat-grid button").nth(CATEGORIES.index(category)).click()
         for label in ticked:
             page.locator("#cat-subs").get_by_label(label, exact=True).check()
@@ -434,6 +433,36 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             "- Details: Trustee of a hospice charity",
         ])
 
+    # ---------- after adding an entry ----------
+
+    def test_the_types_of_entry_are_offered_again_straight_after_adding_one(self):
+        page = self.open_browser()
+        self.start(page)
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], details="First")
+        # No click is needed to see the types of entry again.
+        self.assertTrue(page.is_visible("#picker"))
+        self.assertTrue(page.is_visible("#after-add"))
+        self.assertTrue(page.is_visible("#cat-grid button >> nth=0"))
+        # "All finished" is the last option in that list.
+        self.assertEqual(
+            page.eval_on_selector("#cat-grid button:last-child", "b => b.id"), "btn-all-finished"
+        )
+        self.assertTrue(page.is_visible("#btn-all-finished"))
+        # So the next entry takes one click on its type.
+        page.locator("#cat-grid button").nth(CATEGORIES.index("Academic")).click()
+        self.assertEqual(page.text_content("#cat-form-title"), "Academic")
+        self.assertFalse(page.is_visible("#picker"))
+        self.assertFalse(page.is_visible("#after-add"))
+
+    def test_all_finished_is_only_offered_once_there_is_an_entry(self):
+        page = self.open_browser()
+        self.start(page)
+        self.assertFalse(page.is_visible("#btn-all-finished"))
+        self.add_ok(page, "Consultancy", ["Pharmaceutical companies"], details="Only one")
+        self.assertTrue(page.is_visible("#btn-all-finished"))
+        self.remove(page, "Only one")
+        self.assertFalse(page.is_visible("#btn-all-finished"))
+
     # ---------- "All finished" ----------
 
     def test_all_finished_goes_to_the_submit_button(self):
@@ -465,7 +494,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
         self.start(page)
         self.assertEqual(page.eval_on_selector_all(
             "#cat-grid button", "buttons => buttons.map(b => b.firstChild.textContent)"
-        ), CATEGORIES)
+        ), [*CATEGORIES, "All finished"])
         self.assertEqual(page.locator("#cat-band option").all_text_contents()[1:], BANDS)
         # Each category's form: its title, its boxes, and whether it has a band.
         for category, boxes, has_band in (
@@ -510,6 +539,7 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             ("Sponsored / educational events", ["Conferences"], "£5,000 to under £10,000", ""),
             ("Political / membership organisations", [], "", "Elected member, BMA council"),
             ("Other declarations", [], "", "Trustee of a local hospice charity (unpaid)"),
+            ("Financial", ["Shares, stocks or company ownership"], ZERO_BAND, "Shares that paid no dividend"),
         ]
         self.assertEqual(sorted({band for _, _, band, _ in entries} - {""}), sorted(BANDS))
         for entry in entries:
@@ -534,6 +564,8 @@ class DeclarationFormBrowserTest(StaticLiveServerTestCase):
             "h3: Financial",
             "- Relates to: Patents owned / part-owned, Shares, stocks or company ownership"
             " · Income band: £10,000 to under £50,000 · Details: Valve sizing patent; shares in ValveCo Ltd",
+            "- Relates to: Shares, stocks or company ownership"
+            " · Income band: £0 (nothing received) · Details: Shares that paid no dividend",
             "h3: Spousal / family",
             "- Income band: £50,000 to under £100,000",
             "h3: Sponsored / educational events",

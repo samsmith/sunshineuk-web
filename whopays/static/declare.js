@@ -13,7 +13,10 @@
 (function () {
   "use strict";
 
+  // The first is the zero band, for an interest that paid nothing. The old
+  // form's bands (doctors/convert.py) start at "under £100".
   const BANDS = [
+    "£0 (nothing received)",
     "under £100",
     "£100 to under £1,000",
     "£1,000 to under £2,000",
@@ -135,7 +138,8 @@
     btn.className = "btn btn-default";
     btn.innerHTML = `${esc(cat.label)}<span class="cat-note">${esc(cat.note)}</span>`;
     btn.addEventListener("click", () => openCategoryForm(key));
-    byId("cat-grid").appendChild(btn);
+    // Before "All finished", which is the last option in the list.
+    byId("cat-grid").insertBefore(btn, byId("btn-all-finished"));
   });
 
   [["", "— select a band —"]].concat(BANDS.map(b => [b, b])).forEach(([value, text]) => {
@@ -273,20 +277,19 @@
 
     renderLedger();
     hide(byId("cat-form"));
+    // The types of entry are offered again straight away, with an "Entry
+    // added" message, so adding another takes one click, not two.
     show(byId("after-add"));
-    byId("after-add").scrollIntoView({ block: "start" });
-  });
-
-  byId("btn-add-another").addEventListener("click", () => {
-    hide(byId("after-add"));
     show(byId("picker"));
     byId("picker").scrollIntoView({ block: "start" });
   });
 
-  // The picker stays hidden: the person has said they're done. "Add more
-  // first" in the submit panel brings it back.
+  // The last option in the list of types. The person has said they're done,
+  // so the picker is put away. "Add more first" in the submit panel brings
+  // it back.
   byId("btn-all-finished").addEventListener("click", () => {
     hide(byId("after-add"));
+    hide(byId("picker"));
     byId("submit-panel").scrollIntoView({ block: "start" });
   });
 
@@ -329,6 +332,7 @@
     if (state.records.length === 0 && !nothingToDeclare) {
       ledger.innerHTML = `<p class="ledger-empty">Nothing added yet.</p>`;
       hide(byId("submit-panel"));
+      hide(byId("btn-all-finished"));
       hide(byId("nothing-else"));
       // After "All finished" the picker is hidden: if the last entry has
       // just been removed, bring it back, or there'd be nothing to click.
@@ -339,6 +343,8 @@
       return;
     }
     show(byId("submit-panel"));
+    // "All finished" is only offered when there is something to submit.
+    show(byId("btn-all-finished"));
 
     // With only main employment listed, ask whether there's anything else.
     // Nothing is said for them: they tick the box.
