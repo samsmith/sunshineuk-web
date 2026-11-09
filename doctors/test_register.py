@@ -539,8 +539,14 @@ class DoctorPageTest(TestCase):
         ):
             with self.subTest(element=element):
                 self.assertInHTML(element, page)
-        # Each declaration says how to report a mistake in it.
-        self.assertContains(response, "Something wrong with this declaration?", count=2)
+        # How to report a mistake is said once for the page, not per declaration.
+        self.assertContains(response, "Something wrong with this declaration?", count=1)
+
+    def test_no_report_a_mistake_line_when_there_is_no_declaration(self):
+        doctor = make_doctor(name="Dr Nobody")
+        response = self.client.get(doctor.get_absolute_url())
+        self.assertContains(response, "Dr Nobody")
+        self.assertNotContains(response, "Something wrong with this declaration?")
 
     def test_what_doctors_type_shows_exactly_as_typed(self):
         # The form escapes what's typed (mdEscape() in static/declare.js, the

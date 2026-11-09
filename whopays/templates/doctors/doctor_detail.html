@@ -25,16 +25,25 @@
   </div>
 
   {# Every declaration is stored as markdown (v3), newest first. #}
-  {% for declaration in doctor.declarationv3_set.all %}
-    <div class="row box">
-      <div class="col-md-12">
-        {{ declaration.markdown|markdown }}
-        <hr />
-        <p class="text-muted">
-          Something wrong with this declaration? Contact team&#64;sunshineuk.org to let them know.
-        </p>
+  {% with declarations=doctor.declarationv3_set.all %}
+    {% for declaration in declarations %}
+      <div class="row box">
+        <div class="col-md-12">
+          {{ declaration.markdown|markdown }}
+        </div>
       </div>
-    </div>
-  {% endfor %}
+    {% endfor %}
+
+    {# Said once for the page, not under every declaration. #}
+    {% if declarations %}
+      <div class="row box">
+        <div class="col-md-12">
+          <p class="text-muted">
+            Something wrong with this declaration? Contact team&#64;sunshineuk.org to let them know.
+          </p>
+        </div>
+      </div>
+    {% endif %}
+  {% endwith %}
 
 {% endblock %}
