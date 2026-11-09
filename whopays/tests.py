@@ -306,28 +306,3 @@ class PagesTest(TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertIn("Looks like something went wrong", response.content.decode())
 
-
-@PLAIN_STATIC
-class SiteNoticeTest(TestCase):
-    """
-    The temporary "unavailable for updates" strip. Delete this class when the
-    notice comes down; reverting the commit that added the notice does both.
-    """
-
-    notice = re.compile(
-        r'<body>\s*<div class="site-notice">'
-        r"SunshineUK is temporarily unavailable for updates</div>"
-    )
-
-    def test_first_thing_on_every_page(self):
-        for url in ("/", "/about", "/contact", "/declare", "/doctors/", "/search/?q=x"):
-            with self.subTest(url=url):
-                self.assertRegex(self.client.get(url).content.decode(), self.notice)
-
-    def test_on_the_error_pages(self):
-        self.assertRegex(self.client.get("/no-such-page").content.decode(), self.notice)
-        response = defaults.server_error(RequestFactory().get("/"))
-        self.assertRegex(response.content.decode(), self.notice)
-
-    def test_not_in_the_admin(self):
-        self.assertNotContains(self.client.get(reverse("admin:login")), "site-notice")
